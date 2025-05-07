@@ -43,13 +43,20 @@ struct ZydisInstruction
         }
 
         ZydisDisassembledInstruction instruction;
-        if (ZYAN_SUCCESS(ZydisDisassembleIntel(ZYDIS_MACHINE_MODE_LONG_COMPAT_32, runtime_address, &data[offset],
-            data.size() - offset, &instruction)))
+        const bool success = ZYAN_SUCCESS(ZydisDisassembleIntel(
+            ZYDIS_MACHINE_MODE_LONG_COMPAT_32, 
+            runtime_address, 
+            &data[offset],
+            data.size() - offset, 
+            &instruction
+        ));
+        
+        if (!success)
         {
-            return ZydisInstruction{ instruction, runtime_address, offset };
+            return std::nullopt;
         }
-
-        return std::nullopt;
+        
+        return ZydisInstruction{ instruction, runtime_address, offset };
     }
 };
 
@@ -58,28 +65,27 @@ std::optional<ZydisInstruction> disassemble_until(const std::vector<std::uint8_t
     const std::function<bool(const ZydisInstruction&)>& predicate,
     const std::size_t max_instructions = 200)
 {
-
     std::size_t instr_offset = start_offset;
     std::size_t count = 0;
 
     while (count < max_instructions)
     {
-        if (const auto instr = ZydisInstruction::disassemble(data, instr_offset, runtime_address + (instr_offset - start_offset)))
-        {
-            std::print("{}\n", instr->string());
-
-            if (predicate(*instr))
-            {
-                return *instr;
-            }
-            instr_offset += instr->size();
-            count++;
-        }
-        else
+        auto instr = ZydisInstruction::disassemble(data, instr_offset, runtime_address + (instr_offset - start_offset));
+        if (!instr)
         {
             std::print(std::cerr, "Failed to disassemble instruction at offset: {:x}\n", instr_offset);
             break;
         }
+
+        std::print("{}\n", instr->string());
+
+        if (predicate(*instr))
+        {
+            return *instr;
+        }
+        
+        instr_offset += instr->size();
+        count++;
     }
 
     return std::nullopt;
@@ -162,7 +168,6 @@ std::vector<std::size_t> find_patterns(const std::vector<std::uint8_t>& data,
         results.push_back(offset);
 
         it = match_result.begin() + 1;
-
         if (it == data.end())
         {
             break;
@@ -180,23 +185,27 @@ void patch_checksum_checks(std::vector<std::uint8_t>& data)
     const auto predicate = [](const ZydisInstruction& instr)
     {
         return instr.backing.info.mnemonic == ZYDIS_MNEMONIC_SUB &&
-            instr.backing.info.operand_count >= 2 &&
-            instr.backing.operands[0].type == ZYDIS_OPERAND_TYPE_MEMORY &&
-            instr.backing.operands[0].mem.base == ZYDIS_REGISTER_ESP &&
-            instr.backing.operands[1].reg.value == ZYDIS_REGISTER_EAX;
+               instr.backing.info.operand_count >= 2 &&
+               instr.backing.operands[0].type == ZYDIS_OPERAND_TYPE_MEMORY &&
+               instr.backing.operands[0].mem.base == ZYDIS_REGISTER_ESP &&
+               instr.backing.operands[1].reg.value == ZYDIS_REGISTER_EAX;
     };
 
     for (const auto& offset : find_patterns(data, pattern))
     {
         std::print("Checksum loop found at: 0x{:x}\n", IMAGE_BASE + offset);
 
-        const auto instr = disassemble_until(data, offset, IMAGE_BASE + offset, predicate);
+        auto instr = disassemble_until(data, offset, IMAGE_BASE + offset, predicate);
+        if (!instr)
+        {
+            std::print(std::cerr, "Could not find tamper instruction\n");
+            continue;
+        }
+
         std::print("Found tamper instruction at: 0x{:x}\n", IMAGE_BASE + instr->offset);
 
-        for (int i = 0; i < 3; ++i)
-        {
-            data[instr->offset + i] = 0x90; // NOP
-        }
+        // replace with NOPs
+        std::memset(&data[instr->offset], 0x90, 3);
     }
 }
 
@@ -211,13 +220,15 @@ void patch_deco_checks(std::vector<std::uint8_t>& data)
         0xA0, {}, {}, {}, {},         // mov al, driveLetter
         0x50,                         // push eax
     };
+    
     const auto cmp_predicate = [](const ZydisInstruction& instr) -> bool
     {
-        // Check if instruction is a CMP with immediate value and memory operand using EBP
-        return instr.backing.info.mnemonic == ZYDIS_MNEMONIC_CMP && instr.backing.info.operand_count >= 2 &&
-            instr.backing.operands[0].type == ZYDIS_OPERAND_TYPE_MEMORY &&
-            instr.backing.operands[0].mem.base == ZYDIS_REGISTER_EBP &&
-            instr.backing.operands[1].type == ZYDIS_OPERAND_TYPE_IMMEDIATE;
+        // check if instruction is a CMP with immediate value and memory operand using EBP
+        return instr.backing.info.mnemonic == ZYDIS_MNEMONIC_CMP && 
+               instr.backing.info.operand_count >= 2 &&
+               instr.backing.operands[0].type == ZYDIS_OPERAND_TYPE_MEMORY &&
+               instr.backing.operands[0].mem.base == ZYDIS_REGISTER_EBP &&
+               instr.backing.operands[1].type == ZYDIS_OPERAND_TYPE_IMMEDIATE;
     };
 
     for (const auto& image_offset : find_patterns(data, pattern))
@@ -228,31 +239,29 @@ void patch_deco_checks(std::vector<std::uint8_t>& data)
         std::print("Prologue to ProgressiveDecompress_24 found at: 0x{:x}\n", virtual_address);
         std::print("Setup for ProgressiveDecompress_24 at: 0x{:x}\n", drm_address);
 
-        if (auto cmp_instr = disassemble_until(data, image_offset, virtual_address, cmp_predicate))
-        {
-            auto magic_value = static_cast<std::uint32_t>(cmp_instr->backing.operands[1].imm.value.u);
-            std::print("Magic value: 0x{:x}\n", magic_value);
-
-            // PRESUMED location of the "push edx, ProgressiveDecompress" -> we might have to rely on pattern scan
-            // for this
-            const std::size_t patch_offset = image_offset + PROGRESSIVE_DECOMPRESS_OFFSET;
-
-            // B8 xx xx xx xx = MOV EAX, imm32
-            data[patch_offset] = 0xB8;
-            data[patch_offset + 1] = static_cast<std::uint8_t>(magic_value & 0xFF);
-            data[patch_offset + 2] = static_cast<std::uint8_t>((magic_value >> 8) & 0xFF);
-            data[patch_offset + 3] = static_cast<std::uint8_t>((magic_value >> 16) & 0xFF);
-            data[patch_offset + 4] = static_cast<std::uint8_t>((magic_value >> 24) & 0xFF);
-            data[patch_offset + 5] = 0x90; // NOP the "push edx"
-
-            std::print("Patched ProgressiveDecompress_24 setup:\n");
-
-            disassemble_until(data, image_offset, virtual_address, cmp_predicate);
-        }
-        else
+        auto cmp_instr = disassemble_until(data, image_offset, virtual_address, cmp_predicate);
+        if (!cmp_instr)
         {
             std::print(std::cerr, "Couldn't find the magic CMP instruction\n");
+            continue;
         }
+
+        auto magic_value = static_cast<std::uint32_t>(cmp_instr->backing.operands[1].imm.value.u);
+        std::print("Magic value: 0x{:x}\n", magic_value);
+
+        // patch location of the "push edx, ProgressiveDecompress"
+        const std::size_t patch_offset = image_offset + PROGRESSIVE_DECOMPRESS_OFFSET;
+
+        // B8 xx xx xx xx = MOV EAX, imm32
+        data[patch_offset] = 0xB8;
+        data[patch_offset + 1] = static_cast<std::uint8_t>(magic_value & 0xFF);
+        data[patch_offset + 2] = static_cast<std::uint8_t>((magic_value >> 8) & 0xFF);
+        data[patch_offset + 3] = static_cast<std::uint8_t>((magic_value >> 16) & 0xFF);
+        data[patch_offset + 4] = static_cast<std::uint8_t>((magic_value >> 24) & 0xFF);
+        data[patch_offset + 5] = 0x90; // NOP the "push edx"
+
+        std::print("Patched ProgressiveDecompress_24 setup:\n");
+        disassemble_until(data, image_offset, virtual_address, cmp_predicate);
     }
 }
 
@@ -261,55 +270,73 @@ void patch_initial_cd_checks(std::vector<std::uint8_t>& data)
     const auto iat_lut = build_iat_lookup_table(data);
 
     int offset = 0;
-    while (true)
+    while (offset < static_cast<int>(data.size()))
     {
-        if (const auto instr = ZydisInstruction::disassemble(data, offset, IMAGE_BASE + offset))
+        // we're just bruteforcing through the file, expect errors
+        auto instr = ZydisInstruction::disassemble(data, offset, IMAGE_BASE + offset);
+        if (!instr)
         {
-            if (instr->backing.info.mnemonic == ZYDIS_MNEMONIC_CALL &&
-                instr->backing.operands[0].type == ZYDIS_OPERAND_TYPE_MEMORY)
-            {
-                const auto iat_address = instr->backing.operands[0].mem.disp.value;
-                if (iat_lut.contains(iat_address))
-                {
-                    std::print("Found call to {} at 0x{:x}\n", iat_lut.at(iat_address), IMAGE_BASE + offset);
-
-                    // Find next JZ
-                    const auto predicate = [](const ZydisInstruction& instr)
-                    {
-                        return instr.backing.info.mnemonic == ZYDIS_MNEMONIC_JZ;
-                    };
-
-                    if (const auto instr = disassemble_until(data, offset, IMAGE_BASE + offset, predicate))
-                    {
-                        std::print("Found JZ at 0x{:x}\n", IMAGE_BASE + instr->offset);
-
-                        if (data[instr->offset] == 0x74)
-                        {
-                            data[instr->offset] = 0x75; // JNZ short
-                        }
-                        else if (data[instr->offset] == 0x0F && data[instr->offset + 1] == 0x84)
-                        {
-                            data[instr->offset + 1] = 0x85; // JNZ far
-                        }
-                        else
-                        {
-                            std::print(std::cerr, "Unknown JZ instruction at 0x{:x}\n", IMAGE_BASE + instr->offset);
-                        }
-
-                        const auto predicate = [](const ZydisInstruction& instr)
-                        {
-                            return instr.backing.info.mnemonic == ZYDIS_MNEMONIC_JNZ;
-                        };
-                        disassemble_until(data, offset, IMAGE_BASE + offset, predicate);
-                    }
-
-                    break;
-                }
-            }
+            offset++;
+            continue;
         }
 
-        offset++;
+        // skip if not call instruction
+        if (instr->backing.info.mnemonic != ZYDIS_MNEMONIC_CALL || 
+            instr->backing.operands[0].type != ZYDIS_OPERAND_TYPE_MEMORY)
+        {
+            offset++;
+            continue;
+        }
+
+        // check if this is a call to a CD-check function
+        const auto iat_address = instr->backing.operands[0].mem.disp.value;
+        if (!iat_lut.contains(iat_address))
+        {
+            offset++;
+            continue;
+        }
+            
+        std::print("Found call to {} at 0x{:x}\n", iat_lut.at(iat_address), IMAGE_BASE + offset);
+
+        // find next JZ
+        const auto jz_predicate = [](const ZydisInstruction& instr)
+        {
+            return instr.backing.info.mnemonic == ZYDIS_MNEMONIC_JZ;
+        };
+
+        auto jz_instr = disassemble_until(data, offset, IMAGE_BASE + offset, jz_predicate);
+        if (!jz_instr)
+        {
+            offset++;
+            continue;
+        }
+        
+        std::print("Found JZ at 0x{:x}\n", IMAGE_BASE + jz_instr->offset);
+
+        // patch JZ to JNZ
+        if (data[jz_instr->offset] == 0x74)
+        {
+            data[jz_instr->offset] = 0x75; // JNZ short
+        }
+        else if (data[jz_instr->offset] == 0x0F && data[jz_instr->offset + 1] == 0x84)
+        {
+            data[jz_instr->offset + 1] = 0x85; // JNZ far
+        }
+        else
+        {
+            std::print(std::cerr, "Unknown JZ instruction at 0x{:x}\n", IMAGE_BASE + jz_instr->offset);
+        }
+
+        // dump to confirm patch
+        const auto jnz_predicate = [](const ZydisInstruction& instr)
+        {
+            return instr.backing.info.mnemonic == ZYDIS_MNEMONIC_JNZ;
+        };
+        disassemble_until(data, offset, IMAGE_BASE + offset, jnz_predicate);
+        return;
     }
+    
+    std::print(std::cerr, "Could not find CD check to patch\n");
 }
 
 int main(int argc, char* argv[])
