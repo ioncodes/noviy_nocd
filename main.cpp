@@ -132,8 +132,8 @@ std::unordered_map<std::uint64_t, std::string> build_iat_lookup_table(std::vecto
     };
 
     IterImpVAString(parser, callback, &iat_lookup_table);
-
     DestructParsedPE(parser);
+
     return iat_lookup_table;
 }
 
