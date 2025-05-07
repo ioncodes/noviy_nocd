@@ -205,10 +205,10 @@ void patch_deco_checks(std::vector<std::uint8_t>& data)
     constexpr auto PROGRESSIVE_DECOMPRESS_OFFSET = 20;
 
     const auto pattern = std::vector<std::optional<std::uint8_t>>{
-        0xBA, {},   0x00, 0x00, 0x00, // mov edx, trackNumber
+        0xBA, {}, 0x00, 0x00, 0x00,   // mov edx, trackNumber
         0x52,                         // push edx
         0x33, 0xC0,                   // xor eax, eax
-        0xA0, {},   {},   {},   {},   // mov al, driveLetter
+        0xA0, {}, {}, {}, {},         // mov al, driveLetter
         0x50,                         // push eax
     };
     const auto cmp_predicate = [](const ZydisInstruction& instr) -> bool
