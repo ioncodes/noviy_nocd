@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <cinttypes>
 #include <filesystem>
 #include <fstream>
@@ -6,7 +7,6 @@
 #include <iostream>
 #include <optional>
 #include <vector>
-#include <array>
 
 #include <Zydis/Zydis.h>
 #include <pe-parse/parse.h>
@@ -63,7 +63,8 @@ std::optional<ZydisInstruction> disassemble_until(const std::vector<std::uint8_t
 
     while (count < max_instructions)
     {
-        if (const auto instr = ZydisInstruction::disassemble(data, instr_offset, runtime_address + (instr_offset - start_offset)))
+        if (const auto instr =
+                ZydisInstruction::disassemble(data, instr_offset, runtime_address + (instr_offset - start_offset)))
         {
             std::cout << instr->to_string() << std::endl;
 
@@ -113,7 +114,8 @@ std::unordered_map<std::uint64_t, std::string> build_iat_lookup_table(std::vecto
     using namespace peparse;
     const auto parser = ParsePEFromBuffer(makeBufferFromPointer(data.data(), data.size()));
 
-    auto callback = [](void* context, const VA& addr, const std::string& module, const std::string& symbol) -> int {
+    auto callback = [](void* context, const VA& addr, const std::string& module, const std::string& symbol) -> int
+    {
         auto* table = static_cast<decltype(iat_lookup_table)*>(context);
 
         static constexpr std::array<const char*, 2> CD_CHECK_BYPASS = {
@@ -141,7 +143,8 @@ std::vector<std::size_t> find_patterns(const std::vector<std::uint8_t>& data,
 {
     std::vector<std::size_t> results;
 
-    auto predicate = [](const std::uint8_t& x, const std::optional<std::uint8_t>& y) {
+    auto predicate = [](const std::uint8_t& x, const std::optional<std::uint8_t>& y)
+    {
         return !y.has_value() || (y.has_value() && x == y.value());
     };
 
@@ -175,9 +178,9 @@ void patch_checksum_checks(std::vector<std::uint8_t>& data)
     const auto pattern = std::vector<std::optional<std::uint8_t>> {0x03, 0x06, 0x46, 0x49, 0x75, 0xFA};
 
     // find "sub [esp+10h+var_10], eax"
-    const auto predicate = [](const ZydisInstruction& instr) {
-        return instr.backing.info.mnemonic == ZYDIS_MNEMONIC_SUB &&
-               instr.backing.info.operand_count >= 2 &&
+    const auto predicate = [](const ZydisInstruction& instr)
+    {
+        return instr.backing.info.mnemonic == ZYDIS_MNEMONIC_SUB && instr.backing.info.operand_count >= 2 &&
                instr.backing.operands[0].type == ZYDIS_OPERAND_TYPE_MEMORY &&
                instr.backing.operands[0].mem.base == ZYDIS_REGISTER_ESP &&
                instr.backing.operands[1].reg.value == ZYDIS_REGISTER_EAX;
@@ -208,7 +211,8 @@ void patch_deco_checks(std::vector<std::uint8_t>& data)
         0xA0, {},   {},   {},   {},   // mov al, driveLetter
         0x50,                         // push eax
     };
-    const auto cmp_predicate = [](const ZydisInstruction& instr) -> bool {
+    const auto cmp_predicate = [](const ZydisInstruction& instr) -> bool
+    {
         // Check if instruction is a CMP with immediate value and memory operand using EBP
         return instr.backing.info.mnemonic == ZYDIS_MNEMONIC_CMP && instr.backing.info.operand_count >= 2 &&
                instr.backing.operands[0].type == ZYDIS_OPERAND_TYPE_MEMORY &&
@@ -271,10 +275,11 @@ void patch_initial_cd_checks(std::vector<std::uint8_t>& data)
                               << IMAGE_BASE + offset << std::endl;
 
                     // Find next JZ
-                    const auto predicate = [](const ZydisInstruction& instr) {
+                    const auto predicate = [](const ZydisInstruction& instr)
+                    {
                         return instr.backing.info.mnemonic == ZYDIS_MNEMONIC_JZ;
                     };
-                    
+
                     if (const auto instr = disassemble_until(data, offset, IMAGE_BASE + offset, predicate))
                     {
                         std::cout << "Found JZ at 0x" << std::hex << IMAGE_BASE + instr->offset << std::endl;
@@ -289,12 +294,15 @@ void patch_initial_cd_checks(std::vector<std::uint8_t>& data)
                         }
                         else
                         {
-                            std::cerr << "Unknown JZ instruction at 0x" << std::hex << IMAGE_BASE + instr->offset << std::endl;
+                            std::cerr << "Unknown JZ instruction at 0x" << std::hex << IMAGE_BASE + instr->offset
+                                      << std::endl;
                         }
 
-                        disassemble_until(data, offset, IMAGE_BASE + offset, [](const ZydisInstruction& instr) {
-                            return instr.backing.info.mnemonic == ZYDIS_MNEMONIC_JNZ;
-                        });
+                        disassemble_until(data, offset, IMAGE_BASE + offset,
+                                          [](const ZydisInstruction& instr)
+                                          {
+                                              return instr.backing.info.mnemonic == ZYDIS_MNEMONIC_JNZ;
+                                          });
                     }
 
                     break;
