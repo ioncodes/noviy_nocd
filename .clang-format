@@ -1,8 +1,0 @@
-BasedOnStyle: Microsoft
-PointerAlignment: Left
-UseTab: Never
-IndentWidth: 4
-AlignArrayOfStructures: Left
-AllowShortLambdasOnASingleLine: None
-SpaceBeforeCpp11BracedList: true
-BreakBeforeBraces: Allman

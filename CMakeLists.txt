@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.30)
 project(noviy_nocd)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 
 option(ZYDIS_BUILD_TOOLS "" OFF)
 option(ZYDIS_BUILD_EXAMPLES "" OFF)
