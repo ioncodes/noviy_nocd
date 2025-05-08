@@ -11,7 +11,7 @@
 #include <print>
 #include <unordered_map>
 
-#include <Zydis/Zydis.h>
+#include <Zydis/Zydis.h> 
 #include <pe-parse/parse.h>
 
 namespace fs = std::filesystem;
@@ -23,11 +23,6 @@ struct ZydisInstruction
     ZydisDisassembledInstruction backing;
     ZyanU64 runtime_address;
     ZyanUSize offset;
-
-    [[nodiscard]] std::string string() const
-    {
-        return std::format("{:016X}  {}", runtime_address, backing.text);
-    }
 
     [[nodiscard]] std::size_t size() const
     {
@@ -60,6 +55,20 @@ struct ZydisInstruction
     }
 };
 
+template<>
+struct std::formatter<ZydisInstruction>
+{
+    constexpr auto parse(std::format_parse_context& ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto format(const ZydisInstruction& instr, std::format_context& ctx) const
+    {
+        return std::format_to(ctx.out(), "{:016X}  {}", instr.backing.runtime_address, instr.backing.text);
+    }
+};
+
 std::optional<ZydisInstruction> disassemble_until(const std::vector<std::uint8_t>& data, const std::size_t start_offset,
     const ZyanU64 runtime_address,
     const std::function<bool(const ZydisInstruction&)>& predicate,
@@ -77,11 +86,11 @@ std::optional<ZydisInstruction> disassemble_until(const std::vector<std::uint8_t
             break;
         }
 
-        std::print("{}\n", instr->string());
+        std::print("{}\n", instr.value());
 
         if (predicate(*instr))
         {
-            return *instr;
+            return instr;
         }
         
         instr_offset += instr->size();
