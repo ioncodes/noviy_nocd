@@ -258,8 +258,12 @@ void patch_deco_checks(std::vector<std::uint8_t>& data)
         auto magic_value = static_cast<std::uint32_t>(cmp_instr->backing.operands[1].imm.value.u);
         std::print("Magic value: 0x{:x}\n", magic_value);
 
-        // patch location of the "push edx, ProgressiveDecompress"
+        // patch location of the "push edx, ProgressiveDecompress_24"
         const std::size_t patch_offset = image_offset + PROGRESSIVE_DECOMPRESS_OFFSET;
+
+        // TODO: if the TOC checks are in a DLL, relocation will change 2 bytes
+        // of our patch. we need to remove the relocation entry for the
+        // ProgressiveDecompress_24 call
 
         // B8 xx xx xx xx = MOV EAX, imm32
         data[patch_offset] = 0xB8;
@@ -273,6 +277,7 @@ void patch_deco_checks(std::vector<std::uint8_t>& data)
         disassemble_until(data, image_offset, virtual_address, cmp_predicate);
     }
 }
+
 
 void patch_initial_cd_checks(std::vector<std::uint8_t>& data)
 {
@@ -307,7 +312,7 @@ void patch_initial_cd_checks(std::vector<std::uint8_t>& data)
 
         std::print("Found call to {} at 0x{:x}\n", iat_lut.at(iat_address), IMAGE_BASE + offset);
 
-        // find next JZ
+        // find next JCC
         const auto jcc_predicate = [](const ZydisInstruction& instr)
         {
             return instr.backing.info.mnemonic == ZYDIS_MNEMONIC_JZ ||
@@ -321,7 +326,7 @@ void patch_initial_cd_checks(std::vector<std::uint8_t>& data)
             continue;
         }
 
-        std::print("Found JZ at 0x{:x}\n", IMAGE_BASE + jcc_instr->offset);
+        std::print("Found JCC at 0x{:x}\n", IMAGE_BASE + jcc_instr->offset);
 
         // invert JCC
         switch (jcc_instr->backing.info.mnemonic)
@@ -357,10 +362,11 @@ void patch_initial_cd_checks(std::vector<std::uint8_t>& data)
             return instr.backing.info.mnemonic == ZYDIS_MNEMONIC_JNZ ||
                 instr.backing.info.mnemonic == ZYDIS_MNEMONIC_JNBE;
         });
+
         return;
     }
 
-    std::print(std::cerr, "Could not find CD check to patch\n");
+    std::print(std::cerr, "Could not find CD TOC check to patch\n");
 }
 
 int main(int argc, char* argv[])
