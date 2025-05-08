@@ -14,9 +14,11 @@
 #include <Zydis/Zydis.h> 
 #include <pe-parse/parse.h>
 
+using namespace peparse;
+
 namespace fs = std::filesystem;
 
-static constexpr auto IMAGE_BASE = 0x00400000;
+static std::uint32_t g_image_base = 0x00400000;
 
 struct ZydisInstruction
 {
@@ -125,7 +127,6 @@ std::unordered_map<std::uint64_t, std::string> build_iat_lookup_table(std::vecto
 {
     std::unordered_map<std::uint64_t, std::string> iat_lookup_table;
 
-    using namespace peparse;
     const auto parser = ParsePEFromBuffer(makeBufferFromPointer(data.data(), data.size()));
 
     auto callback = [](void* context, const VA& addr, const std::string& module, const std::string& symbol) -> int
@@ -150,6 +151,134 @@ std::unordered_map<std::uint64_t, std::string> build_iat_lookup_table(std::vecto
     DestructParsedPE(parser);
 
     return iat_lookup_table;
+}
+
+void remove_relocation_entry(std::vector<std::uint8_t>& data, std::size_t offset_to_remove)
+{
+    const auto parser = ParsePEFromBuffer(makeBufferFromPointer(data.data(), data.size()));
+
+    struct SectionInfo {
+        std::uint64_t reloc_section_offset;
+        std::uint64_t reloc_section_rva;
+        std::uint32_t reloc_section_size;
+    } section_info = { 0, 0, 0 };
+
+    auto section_callback = [](void* cbd, const VA& base, const std::string& name, const image_section_header& sec, const bounded_buffer* data) -> int
+    {
+        auto* info = static_cast<SectionInfo*>(cbd);
+
+        if (name == ".reloc")
+        {
+            info->reloc_section_offset = sec.PointerToRawData;
+            info->reloc_section_rva = sec.VirtualAddress;
+            info->reloc_section_size = sec.SizeOfRawData;
+            return 1;
+        }
+
+        return 0;
+    };
+
+    // iterate through sections to find the relocation section
+    IterSec(parser, section_callback, &section_info);
+
+    std::uint64_t reloc_section_offset = section_info.reloc_section_offset;
+    std::uint64_t reloc_section_rva = section_info.reloc_section_rva;
+    std::uint32_t reloc_section_size = section_info.reloc_section_size;
+
+    if (reloc_section_offset == 0)
+    {
+        std::print(std::cerr, "No relocation section found\n");
+        DestructParsedPE(parser);
+        return;
+    }
+
+    // calculate the RVA of the offset we want to remove
+    std::uint32_t target_rva = 0;
+
+    struct TargetInfo {
+        std::size_t offset_to_remove;
+        std::uint32_t target_rva;
+    } target_info = { offset_to_remove, 0 };
+
+    auto target_callback = [](void* cbd, const VA& base, const std::string& name, const image_section_header& sec, const bounded_buffer* data) -> int
+    {
+        auto* info = static_cast<TargetInfo*>(cbd);
+
+        if (info->offset_to_remove >= sec.PointerToRawData &&
+            info->offset_to_remove < sec.PointerToRawData + sec.SizeOfRawData)
+        {
+            info->target_rva = sec.VirtualAddress + (info->offset_to_remove - sec.PointerToRawData);
+            return 1;
+        }
+
+        return 0;
+    };
+
+    IterSec(parser, target_callback, &target_info);
+    target_rva = target_info.target_rva;
+
+    if (target_rva == 0)
+    {
+        std::print(std::cerr, "Could not find section containing the offset {}\n", offset_to_remove);
+        DestructParsedPE(parser);
+        return;
+    }
+
+    std::print("Searching for relocation entry for RVA: 0x{:x}\n", target_rva);
+
+    std::size_t reloc_ptr = reloc_section_offset;
+    while (reloc_ptr < reloc_section_offset + reloc_section_size)
+    {
+        if (reloc_ptr + 8 > data.size())
+        {
+            break;
+        }
+
+        std::uint32_t page_rva = *reinterpret_cast<std::uint32_t*>(&data[reloc_ptr]);
+        std::uint32_t block_size = *reinterpret_cast<std::uint32_t*>(&data[reloc_ptr + 4]);
+
+        if (block_size == 0 || block_size > reloc_section_size)
+        {
+            break;
+        }
+
+        // check if our target could be in this block
+        if (target_rva >= page_rva && target_rva < page_rva + 0x1000)
+        {
+            std::print("Found potential relocation block at offset 0x{:x}, page RVA: 0x{:x}, size: {}\n", reloc_ptr, page_rva, block_size);
+
+            std::size_t entries_start = reloc_ptr + 8;
+            std::size_t entries_end = reloc_ptr + block_size;
+
+            for (std::size_t entry_ptr = entries_start; entry_ptr < entries_end; entry_ptr += 2)
+            {
+                if (entry_ptr + 2 > data.size())
+                {
+                    break;
+                }
+
+                std::uint16_t entry = *reinterpret_cast<std::uint16_t*>(&data[entry_ptr]);
+                std::uint16_t offset = entry & 0xFFF;
+                std::uint32_t entry_rva = page_rva + offset;
+
+                // check if this is our target
+                if (entry_rva == target_rva || entry_rva == target_rva + 1 || entry_rva == target_rva + 2 || entry_rva == target_rva + 3)
+                {
+                    std::print("Found relocation entry at offset 0x{:x}, RVA: 0x{:x}\n", entry_ptr, entry_rva);
+
+                    // zero the relocation entry
+                    data[entry_ptr] = 0;
+                    data[entry_ptr + 1] = 0;
+
+                    std::print("Removed relocation entry\n");
+                }
+            }
+        }
+
+        reloc_ptr += block_size;
+    }
+
+    DestructParsedPE(parser);
 }
 
 std::vector<std::size_t> find_patterns(const std::vector<std::uint8_t>& data,
@@ -202,16 +331,16 @@ void patch_checksum_checks(std::vector<std::uint8_t>& data)
 
     for (const auto& offset : find_patterns(data, pattern))
     {
-        std::print("Checksum loop found at: 0x{:x}\n", IMAGE_BASE + offset);
+        std::print("Checksum loop found at: 0x{:x}\n", g_image_base + offset);
 
-        auto instr = disassemble_until(data, offset, IMAGE_BASE + offset, predicate);
+        auto instr = disassemble_until(data, offset, g_image_base + offset, predicate);
         if (!instr)
         {
             std::print(std::cerr, "Could not find tamper instruction\n");
             continue;
         }
 
-        std::print("Found tamper instruction at: 0x{:x}\n", IMAGE_BASE + instr->offset);
+        std::print("Found tamper instruction at: 0x{:x}\n", g_image_base + instr->offset);
 
         // replace with NOPs
         std::memset(&data[instr->offset], 0x90, 3);
@@ -242,7 +371,7 @@ void patch_deco_checks(std::vector<std::uint8_t>& data)
 
     for (const auto& image_offset : find_patterns(data, pattern))
     {
-        const std::size_t virtual_address = IMAGE_BASE + image_offset;
+        const std::size_t virtual_address = g_image_base + image_offset;
         const std::size_t drm_address = virtual_address + PROGRESSIVE_DECOMPRESS_OFFSET;
 
         std::print("Prologue to ProgressiveDecompress_24 found at: 0x{:x}\n", virtual_address);
@@ -258,26 +387,44 @@ void patch_deco_checks(std::vector<std::uint8_t>& data)
         auto magic_value = static_cast<std::uint32_t>(cmp_instr->backing.operands[1].imm.value.u);
         std::print("Magic value: 0x{:x}\n", magic_value);
 
-        // patch location of the "push edx, ProgressiveDecompress_24"
-        const std::size_t patch_offset = image_offset + PROGRESSIVE_DECOMPRESS_OFFSET;
+        // point to the instruction before the "push edx, ProgressiveDecompress_24"
+        const std::size_t patch_offset = image_offset + PROGRESSIVE_DECOMPRESS_OFFSET - 1;
 
-        // TODO: if the TOC checks are in a DLL, relocation will change 2 bytes
-        // of our patch. we need to remove the relocation entry for the
-        // ProgressiveDecompress_24 call
+        // ProgressiveDecompress_24 cleans up the stack ("retn 8")
+        // so we need to incorporate that into our patch
+        // we'll do this by overwriting the following sequence
+
+        // .text:1002B4E6 52              push    edx
+        // .text:1002B4E7 BA 76 49 07 10  mov     edx, offset ProgressiveDecompress_24
+        // .text:1002B4EC 52              push    edx
+        // .text:1002B4ED C3              retn
+
+        // into the following sequence
+
+        // 023DB4E6 | 83C4 08                  | add esp,8                   
+        // 023DB4E9 | B8 2E0A4B00              | mov eax,MAGIC              
+
+        // 83 C4 08 = add esp, 8
+        data[patch_offset] = 0x83;
+        data[patch_offset + 1] = 0xC4;
+        data[patch_offset + 2] = 0x08;
 
         // B8 xx xx xx xx = MOV EAX, imm32
-        data[patch_offset] = 0xB8;
-        data[patch_offset + 1] = static_cast<std::uint8_t>(magic_value & 0xFF);
-        data[patch_offset + 2] = static_cast<std::uint8_t>((magic_value >> 8) & 0xFF);
-        data[patch_offset + 3] = static_cast<std::uint8_t>((magic_value >> 16) & 0xFF);
-        data[patch_offset + 4] = static_cast<std::uint8_t>((magic_value >> 24) & 0xFF);
-        data[patch_offset + 5] = 0x90; // NOP the "push edx"
+        data[patch_offset + 3] = 0xB8;
+        data[patch_offset + 4] = static_cast<std::uint8_t>(magic_value & 0xFF);
+        data[patch_offset + 5] = static_cast<std::uint8_t>((magic_value >> 8) & 0xFF);
+        data[patch_offset + 6] = static_cast<std::uint8_t>((magic_value >> 16) & 0xFF);
+        data[patch_offset + 7] = static_cast<std::uint8_t>((magic_value >> 24) & 0xFF);
 
         std::print("Patched ProgressiveDecompress_24 setup:\n");
         disassemble_until(data, image_offset, virtual_address, cmp_predicate);
+
+        // remove the relocation entry for the ProgressiveDecompress_24 call
+        std::print("\n*** Removing relocation entries for ProgressiveDecompress_24 ***\n");
+        remove_relocation_entry(data, patch_offset + 1); // Address bytes start at offset+1
+        std::print("\n");
     }
 }
-
 
 void patch_initial_cd_checks(std::vector<std::uint8_t>& data)
 {
@@ -287,7 +434,7 @@ void patch_initial_cd_checks(std::vector<std::uint8_t>& data)
     while (offset < static_cast<int>(data.size()))
     {
         // we're just bruteforcing through the file, expect errors
-        auto instr = ZydisInstruction::disassemble(data, offset, IMAGE_BASE + offset);
+        auto instr = ZydisInstruction::disassemble(data, offset, g_image_base + offset);
         if (!instr)
         {
             offset++;
@@ -310,7 +457,7 @@ void patch_initial_cd_checks(std::vector<std::uint8_t>& data)
             continue;
         }
 
-        std::print("Found call to {} at 0x{:x}\n", iat_lut.at(iat_address), IMAGE_BASE + offset);
+        std::print("Found call to {} at 0x{:x}\n", iat_lut.at(iat_address), g_image_base + offset);
 
         // find next JCC
         const auto jcc_predicate = [](const ZydisInstruction& instr)
@@ -319,14 +466,14 @@ void patch_initial_cd_checks(std::vector<std::uint8_t>& data)
                 instr.backing.info.mnemonic == ZYDIS_MNEMONIC_JBE;
         };
 
-        auto jcc_instr = disassemble_until(data, offset, IMAGE_BASE + offset, jcc_predicate);
+        auto jcc_instr = disassemble_until(data, offset, g_image_base + offset, jcc_predicate);
         if (!jcc_instr)
         {
             offset++;
             continue;
         }
 
-        std::print("Found JCC at 0x{:x}\n", IMAGE_BASE + jcc_instr->offset);
+        std::print("Found JCC at 0x{:x}\n", g_image_base + jcc_instr->offset);
 
         // invert JCC
         switch (jcc_instr->backing.info.mnemonic)
@@ -352,12 +499,12 @@ void patch_initial_cd_checks(std::vector<std::uint8_t>& data)
             }
             break;
         default:
-            std::print(std::cerr, "Unknown JCC at 0x{:x}\n", IMAGE_BASE + jcc_instr->offset);
+            std::print(std::cerr, "Unknown JCC at 0x{:x}\n", g_image_base + jcc_instr->offset);
             return;
         }
 
         // dump to confirm patch
-        disassemble_until(data, offset, IMAGE_BASE + offset, [](const ZydisInstruction& instr)
+        disassemble_until(data, offset, g_image_base + offset, [](const ZydisInstruction& instr)
         {
             return instr.backing.info.mnemonic == ZYDIS_MNEMONIC_JNZ ||
                 instr.backing.info.mnemonic == ZYDIS_MNEMONIC_JNBE;
@@ -376,6 +523,11 @@ int main(int argc, char* argv[])
 
     auto buffer = read_file(binary_path);
     std::print("Size: {} bytes\n", buffer.size());
+
+    auto parser = ParsePEFromBuffer(makeBufferFromPointer(buffer.data(), buffer.size()));
+    g_image_base = parser->peHeader.nt.OptionalHeader.ImageBase;
+    DestructParsedPE(parser);
+    std::print("Image base: 0x{:x}\n", g_image_base);
 
     std::print("\n*** Patching initial CD checks ***\n");
     patch_initial_cd_checks(buffer);
