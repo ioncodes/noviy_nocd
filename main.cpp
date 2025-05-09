@@ -407,7 +407,7 @@ void patch_deco_checks(std::vector<std::uint8_t>& data)
 
         // this also gets rid of the push; ret indirection which is fine
 
-        // 83 C4 08 = add esp, 8
+        // 83 C4 08 = ADD ESP, 8
         data[patch_offset] = 0x83;
         data[patch_offset + 1] = 0xC4;
         data[patch_offset + 2] = 0x08;
