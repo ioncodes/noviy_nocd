@@ -10,6 +10,7 @@
 #include <format>
 #include <print>
 #include <unordered_map>
+#include <cstring>
 
 #include <Zydis/Zydis.h> 
 #include <pe-parse/parse.h>
