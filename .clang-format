@@ -1,0 +1,7 @@
+---
+BasedOnStyle: Google
+UseTab: Never
+TabWidth: 4
+ColumnLimit: 120
+IndentWidth: 4
+SortIncludes: Never
