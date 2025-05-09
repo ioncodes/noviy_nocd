@@ -80,5 +80,5 @@ jobs:
       uses: actions/upload-artifact@v4.6.2
       with:
         name: noviy_nocd-windows
-        path: ${{ steps.strings.outputs.build-output-dir }}/noviy_nocd.exe
+        path: ${{ steps.strings.outputs.build-output-dir }}/Release/noviy_nocd.exe
         if-no-files-found: error
