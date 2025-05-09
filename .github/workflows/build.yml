@@ -71,12 +71,14 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       uses: actions/upload-artifact@v4.6.2
       with:
-        name: linux-build-${{ matrix.build_type }}
-        path: ${{ steps.strings.outputs.build-output-dir }}
+        name: noviy_nocd-linux
+        path: ${{ steps.strings.outputs.build-output-dir }}/noviy_nocd
+        if-no-files-found: error
 
     - name: Upload Windows build
       if: matrix.os == 'windows-latest'
       uses: actions/upload-artifact@v4.6.2
       with:
-        name: windows-build-${{ matrix.build_type }}
-        path: ${{ steps.strings.outputs.build-output-dir }}
+        name: noviy_nocd-windows
+        path: ${{ steps.strings.outputs.build-output-dir }}/noviy_nocd.exe
+        if-no-files-found: error
