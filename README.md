@@ -2,6 +2,7 @@
 A tool that automates the process of disabling the CD and anti-piracy checks found in Noviy Disk's custom DRM solution.
 
 ## Building
+[![Build](https://github.com/ioncodes/noviy_nocd/actions/workflows/build.yml/badge.svg)](https://github.com/ioncodes/noviy_nocd/actions/workflows/build.yml)  
 Note: A compiler with support for C++23 features (namely `std::format` and `std::print`) is required. Support has been tested using GCC 14 and MSVC.
 
 ```bash
