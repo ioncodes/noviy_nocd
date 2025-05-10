@@ -1,5 +1,6 @@
 #include <patcher.hpp>
 
+#include <print>
 #include <iostream>
 #include <cstring>
 
@@ -244,7 +245,7 @@ auto Patcher::patch_deco_checks() -> void {
 
         // remove the relocation entry for the ProgressiveDecompress_24 call
         std::print("\n*** Removing relocation entries for ProgressiveDecompress_24 ***\n");
-        remove_relocation_entry(patch_offset + 1);  // Address bytes start at offset+1
+        remove_relocation_entry(patch_offset + 1);  // address bytes start at offset+1
         std::print("\n");
     }
 }

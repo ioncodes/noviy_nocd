@@ -7,6 +7,7 @@
 #include <ranges>
 #include <print>
 #include <array>
+#include <functional>
 
 #include <Zydis/Zydis.h>
 #include <pe-parse/parse.h>
@@ -21,18 +22,9 @@ using namespace peparse;
 namespace fs = std::filesystem;
 
 namespace noviy {
-struct PeParseDeleter {
-    void operator()(parsed_pe* res) const {
-        if (res) {
-            DestructParsedPE(res);
-            delete res;
-        }
-    }
-};
-
 class Patcher {
   private:
-    std::unique_ptr<parsed_pe, PeParseDeleter> parser_;
+    std::unique_ptr<parsed_pe, std::function<void(parsed_pe*)>> parser_;
     fs::path binary_path_;
     std::vector<std::uint8_t> buffer_;
     ZyanUSize image_base_ = 0x00400000;
@@ -42,8 +34,8 @@ class Patcher {
 
   public:
     Patcher(fs::path binary_path) : binary_path_(std::move(binary_path)), buffer_(read_file(binary_path_)) {
-        parser_ = std::unique_ptr<parsed_pe, PeParseDeleter>(
-            ParsePEFromBuffer(makeBufferFromPointer(buffer_.data(), buffer_.size())));
+        parser_ = std::unique_ptr<parsed_pe, std::function<void(parsed_pe*)>>(
+            ParsePEFromBuffer(makeBufferFromPointer(buffer_.data(), buffer_.size())), DestructParsedPE);
         image_base_ = parser_->peHeader.nt.OptionalHeader.ImageBase;
     }
     virtual ~Patcher() = default;
@@ -58,6 +50,25 @@ class Patcher {
         backup_path.replace_filename(binary_path_.stem().string() + ".nocd" + extension.string());
         std::print("Writing crack to: {}\n", backup_path.string());
         write_file(backup_path, buffer_);
+    }
+
+    static auto patch_all(const fs::path& binary_path) {
+        auto patcher = Patcher(binary_path);
+
+        std::print("Executable: {}\n", patcher.path());
+        std::print("Size: {} bytes\n", patcher.buffer_size());
+        std::print("Image base: 0x{:x}\n", patcher.image_base());
+
+        std::print("\n*** Patching initial CD checks ***\n");
+        patcher.patch_initial_cd_checks();
+
+        std::print("\n*** Patching checksum checks ***\n");
+        patcher.patch_checksum_checks();
+
+        std::print("\n*** Patching ProgressiveDecompress_24 CD TOC checks ***\n");
+        patcher.patch_deco_checks();
+
+        patcher.save();
     }
 
     [[nodiscard]] auto image_base() const -> std::uint32_t { return image_base_; }

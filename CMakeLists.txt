@@ -13,7 +13,6 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build Shared Libraries" FORCE)
 add_subdirectory("deps/zydis")
 add_subdirectory("deps/pe-parse")
 
-
 add_executable(noviy_nocd src/disasm.cpp src/patcher.cpp src/main.cpp)
 
 target_include_directories(noviy_nocd PRIVATE include/)

@@ -1,30 +1,17 @@
-#include <filesystem>
+#include <print>
+#include <iostream>
 
-#include <utils.hpp>
 #include <patcher.hpp>
 
-using namespace peparse;
 using namespace noviy;
 
-namespace fs = std::filesystem;
-
 int main(int argc, char* argv[]) {
-    auto patcher = Patcher(fs::path{argv[1]});
+    if (argc < 2) {
+        std::print(std::cerr, "Usage: {} <path_to_executable>\n", argv[0]);
+        return 1;
+    }
 
-    std::print("Executable: {}\n", patcher.path());
-    std::print("Size: {} bytes\n", patcher.buffer_size());
-    std::print("Image base: 0x{:x}\n", patcher.image_base());
-
-    std::print("\n*** Patching initial CD checks ***\n");
-    patcher.patch_initial_cd_checks();
-
-    std::print("\n*** Patching checksum checks ***\n");
-    patcher.patch_checksum_checks();
-
-    std::print("\n*** Patching ProgressiveDecompress_24 CD TOC checks ***\n");
-    patcher.patch_deco_checks();
-
-    patcher.save();
-
+    Patcher::patch_all(argv[1]);
+    
     return 0;
 }
