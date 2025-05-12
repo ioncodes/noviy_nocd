@@ -1,8 +1,0 @@
----
-BasedOnStyle: Google
-UseTab: Never
-TabWidth: 4
-ColumnLimit: 120
-IndentWidth: 4
-AccessModifierOffset: -2
-SortIncludes: Never
