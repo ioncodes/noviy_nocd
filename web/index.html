@@ -1,21 +1,49 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Noviy Disk No-CD Patcher</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
 
-<body>
-    <script type="module">
-        import init, { patch } from "/wasm/noviy_nocd.js";
-        init().then(() => {
-            const input = new Uint8Array([0]);
-            const output = patch(input);
-            console.log("Patched output:", output);
-        });
-    </script>
+<body class="min-h-screen flex items-center justify-center">
+    <div class="container mx-auto px-4 py-8 max-w-2xl">
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h1 class="card-title text-3xl font-bold">Noviy Disk No-CD Patcher</h1>
+
+                <p>Please upload the protected file (e.g. LegoRR.exe). Refer to <a
+                        href="https://github.com/ioncodes/noviy_nocd?tab=readme-ov-file#compatibility">this
+                        compatibility list</a> if you're unsure
+                    which file to upload.</p>
+
+                <input type="file" id="fileInput" class="file-input file-input-bordered w-full max-w-xs" />
+
+                <button id="patchButton" class="btn btn-primary mt-4" disabled>Patch File</button>
+
+                <div class="mt-4 text-gray-600" style="max-height: 200px; overflow-y: auto;">
+                    <pre id="status"></pre>
+                </div>
+
+                <a id="downloadLink" href="#" class="btn btn-success mt-4 hidden">Download No-CD Crack</a>
+            </div>
+        </div>
+
+        <footer class="footer footer-center p-4 mt-8 text-base-content">
+            <div>
+                <p>Made with ❤️ by <a href="https://github.com/ioncodes/noviy_nocd">Layle</a></p>
+                <p><small>All data is directly processed in your browser. The files are never sent to a remote
+                        location!</small></p>
+            </div>
+        </footer>
+    </div>
+
+    <script type="module" src="/js/patcher.js"></script>
 </body>
 
 </html>
