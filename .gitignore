@@ -1,4 +1,3 @@
-cmake-build-*
-build*/
-.idea/
-.vscode/
+/target
+/.idea
+/.vscode
