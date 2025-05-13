@@ -6,49 +6,21 @@ use iced_x86::{Decoder, DecoderOptions, Instruction, Mnemonic, OpKind, Register}
 
 pub struct Patcher {
     buffer: Vec<u8>,
-    base_address: usize,
-    drm_import_lut: HashMap<String, usize>,
 }
 
 impl Patcher {
     pub fn new(buffer: Vec<u8>) -> Self {
-        let image = match Object::parse(&buffer) {
-            Ok(Object::PE(pe)) => pe,
-            _ => panic!("Unsupported file format"),
-        };
-
-        let base_address = Self::get_base_address(&image);
-        println!("Base address: 0x{:04X}", base_address);
-
-        let drm_import_lut = Self::create_drm_import_lut(&image);
-        for (name, rva) in &drm_import_lut {
-            println!(
-                "Found early CD drive check in IAT: {} @ 0x{:04X}",
-                name,
-                base_address + rva
-            );
-        }
-
-        Self {
-            buffer,
-            base_address,
-            drm_import_lut,
-        }
+        Self { buffer }
     }
 
-    fn get_pe_image(&self) -> PE<'_> {
-        match Object::parse(&self.buffer) {
-            Ok(Object::PE(pe)) => pe,
-            _ => panic!("Corrupted PE buffer"),
-        }
+    pub fn buffer(&self) -> &[u8] {
+        &self.buffer
     }
 
-    pub fn with_pe_image<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce(&PE<'_>) -> R,
-    {
-        let pe = self.get_pe_image();
-        f(&pe)
+    pub fn get_base_address(&self) -> usize {
+        self.with_pe_image(|pe| {
+            pe.header.optional_header.unwrap().windows_fields.image_base as usize
+        })
     }
 
     pub fn patch_checksum_checks(&mut self) {
@@ -62,28 +34,147 @@ impl Patcher {
         }
 
         for idx in results {
-            println!("Found checksum check at 0x{:04X}", self.base_address + idx);
+            println!(
+                "Found checksum check at 0x{:04X}",
+                self.get_base_address() + idx
+            );
             // find "sub [esp+10h+var_10], eax"
             let instr = Self::disassemble_until(
                 &self.buffer[idx..],
-                self.base_address + idx,
+                self.get_base_address() + idx,
                 |instruction| {
                     instruction.mnemonic() == Mnemonic::Sub
                         && instruction.op_count() == 2
                         && instruction.op0_kind() == OpKind::Memory
                         && instruction.op1_register() == Register::EAX
                 },
+                false,
+            )
+            .unwrap_or_else(|| panic!("Failed to find checksum fail instruction at 0x{:04X}", idx));
+            println!(
+                "Patching checksum fail instruction at 0x{:04X}:",
+                instr.ip()
             );
-            println!("Found checksum fail instruction at 0x{:04X}", instr.ip());
 
             // NOP out the instruction
-            let physical_offset = instr.ip() as usize - self.base_address;
+            let physical_offset = instr.ip() as usize - self.get_base_address();
             self.buffer[physical_offset..physical_offset + 3].copy_from_slice(&[0x90; 3]);
+
+            // print for comparison
+            Self::disassemble_until(
+                &self.buffer[idx..],
+                self.get_base_address() + idx,
+                |instruction| instruction.mnemonic() == Mnemonic::Nop,
+                false,
+            );
+
+            println!();
         }
+    }
+
+    pub fn patch_early_cd_checks(&mut self) {
+        println!("*** Patching early CD checks ***");
+
+        // we need to find the calls used to check for CD drives
+        // we found that if the function fails, the early checks are simply skipped
+        // without any side effects
+        const GET_LOGICAL_DRIVES_LUT: [&str; 2] = ["GetLogicalDrives", "GetLogicalDriveStringsA"];
+        let drm_imports = self.with_pe_image(|pe| {
+            let mut used_imports = HashMap::new();
+            for import in &pe.imports {
+                if GET_LOGICAL_DRIVES_LUT.contains(&import.name.as_ref()) {
+                    used_imports.insert(import.offset, String::from(import.name.clone()));
+                    println!(
+                        "Found early CD check function in IAT: {} @ 0x{:04X}",
+                        import.name,
+                        self.get_base_address() + import.offset
+                    );
+                }
+            }
+            used_imports
+        });
+
+        if drm_imports.is_empty() {
+            println!("No early CD checks found");
+            return;
+        }
+
+        // find the call instruction that calls the function
+        // TODO: we only look for the first hit, what happens if there are multiple?
+        // never had that case, but we should be careful
+        let call_instr = Self::disassemble_until(
+            &self.buffer,
+            self.get_base_address(),
+            |instruction| {
+                instruction.mnemonic() == Mnemonic::Call
+                    && instruction.op0_kind() == OpKind::Memory
+                    && drm_imports.contains_key(
+                        &(instruction.ip_rel_memory_address() as usize)
+                            .wrapping_sub(self.get_base_address()),
+                    )
+            },
+            true,
+        )
+        .unwrap_or_else(|| panic!("Failed to find call instruction for early CD check"));
+        println!(
+            "Found call instruction for early CD check at 0x{:04X}",
+            call_instr.ip()
+        );
+
+        // find the next JCC and invert it
+        // we may need to find other types of JCC instructions as well
+        // i've only encountered JBE and JE so far tho
+        let jcc_instr = Self::disassemble_until(
+            &self.buffer[call_instr.ip() as usize - self.get_base_address()..],
+            call_instr.ip() as usize,
+            |instruction| {
+                instruction.mnemonic() == Mnemonic::Jbe || instruction.mnemonic() == Mnemonic::Je
+            },
+            false,
+        )
+        .unwrap_or_else(|| {
+            panic!(
+                "Failed to find JCC instruction after call instruction at 0x{:04X}",
+                call_instr.ip()
+            )
+        });
+        println!("Found JCC instruction at 0x{:04X}", jcc_instr.ip());
+
+        // invert the JCC instruction
+        let physical_offset = jcc_instr.ip() as usize - self.get_base_address();
+        match jcc_instr.mnemonic() {
+            Mnemonic::Je if self.buffer[physical_offset] == 0x74 => {
+                self.buffer[physical_offset] = 0x75 // JNE near
+            }
+            Mnemonic::Je if self.buffer[physical_offset] == 0x0F => {
+                self.buffer[physical_offset + 1] = 0x85 // JNE far
+            }
+            Mnemonic::Jbe if self.buffer[physical_offset] == 0x76 => {
+                self.buffer[physical_offset] = 0x77 // JNBE near
+            }
+            Mnemonic::Jbe if self.buffer[physical_offset] == 0x0F => {
+                self.buffer[physical_offset + 1] = 0x87 // JNBE far
+            }
+            _ => panic!("Unsupported JCC instruction"),
+        };
+
+        println!(
+            "\nPatched JCC instruction at 0x{:04X}:",
+            jcc_instr.ip() as usize
+        );
+
+        // disassemble to see if it worked
+        Self::disassemble_until(
+            &self.buffer[call_instr.ip() as usize - self.get_base_address()..],
+            call_instr.ip() as usize,
+            |instruction| instruction.ip() == jcc_instr.ip(),
+            false,
+        );
     }
 
     pub fn patch_deco_checks(&mut self) {
         println!("\n*** Patching ProgressiveDecompress_24 CD TOC checks ***");
+
         let pattern = pattern!({
             0xBA, {}, 0x00, 0x00, 0x00,    // mov edx, trackNumber
             0x52,                          // push edx
@@ -96,20 +187,27 @@ impl Patcher {
         for idx in pattern::find_all(&self.buffer, pattern) {
             println!(
                 "Found pattern for ProgressiveDecompress_24 at 0x{:04X}:",
-                self.base_address + idx
+                self.get_base_address() + idx
             );
 
             // decode until we find the cmp instruction that verifies the TOC magic value
             let instr = Self::disassemble_until(
                 &self.buffer[idx..],
-                self.base_address + idx,
+                self.get_base_address() + idx,
                 |instruction| {
                     instruction.mnemonic() == Mnemonic::Cmp
                         && instruction.op_count() >= 2
                         && instruction.op0_kind() == OpKind::Memory
                         && instruction.op1_kind() == OpKind::Immediate32
                 },
-            );
+                false,
+            )
+            .unwrap_or_else(|| {
+                panic!(
+                    "Failed to find cmp instruction for ProgressiveDecompress_24 at 0x{:04X}",
+                    self.get_base_address() + idx
+                )
+            });
             println!(
                 "Prologue to ProgressiveDecompress_24 found at 0x{:04X}",
                 instr.ip()
@@ -154,13 +252,14 @@ impl Patcher {
             println!("\nPatched ProgressiveDecompress_24 call:");
             Self::disassemble_until(
                 &self.buffer[physical_offset..],
-                self.base_address + physical_offset,
+                self.get_base_address() + physical_offset,
                 |instruction| {
                     instruction.mnemonic() == Mnemonic::Cmp
                         && instruction.op_count() >= 2
                         && instruction.op0_kind() == OpKind::Memory
                         && instruction.op1_kind() == OpKind::Immediate32
                 },
+                false,
             );
 
             println!("\nRemoving relocation entry at 0x{:04X}", physical_offset);
@@ -168,23 +267,29 @@ impl Patcher {
         }
     }
 
-    fn disassemble_until(
+    fn disassemble_until<F>(
         buffer: &[u8],
         start_address: usize,
-        predicate: fn(&Instruction) -> bool,
-    ) -> Instruction {
+        predicate: F,
+        quiet: bool,
+    ) -> Option<Instruction>
+    where
+        F: Fn(&Instruction) -> bool,
+    {
         let mut decoder = Decoder::with_ip(32, buffer, start_address as u64, DecoderOptions::NONE);
 
         while decoder.can_decode() {
             let instruction = decoder.decode();
-            println!("0x{:04X}: {}", instruction.ip(), instruction);
+            if !quiet {
+                println!("0x{:04X}: {}", instruction.ip(), instruction);
+            }
 
             if predicate(&instruction) {
-                return instruction;
+                return Some(instruction);
             }
         }
 
-        panic!("Failed to find instruction matching predicate");
+        None
     }
 
     fn remove_relocation_entry(&mut self, offset_to_remove: usize) {
@@ -198,8 +303,13 @@ impl Patcher {
                         sec.size_of_raw_data as usize,
                     )
                 })
-                .expect("Failed to find .reloc section")
+                .unwrap_or((0, 0))
         });
+
+        if reloc_offset == 0 || reloc_size == 0 {
+            println!("No relocation section found");
+            return;
+        }
 
         // find section containing target offset & convert to RVA
         let target_rva = self
@@ -272,28 +382,18 @@ impl Patcher {
         }
     }
 
-    fn create_drm_import_lut(image: &PE<'_>) -> HashMap<String, usize> {
-        let mut drm_import_lut = HashMap::new();
-
-        for import in &image.imports {
-            if Self::is_early_cd_drive_check(&import.name) {
-                drm_import_lut.insert(String::from(import.name.clone()), import.rva);
-            }
+    fn get_pe_image(&self) -> PE<'_> {
+        match Object::parse(&self.buffer) {
+            Ok(Object::PE(pe)) => pe,
+            _ => panic!("Corrupted PE buffer"),
         }
-
-        drm_import_lut
     }
 
-    fn get_base_address(image: &PE<'_>) -> usize {
-        image
-            .header
-            .optional_header
-            .unwrap()
-            .windows_fields
-            .image_base as usize
-    }
-
-    fn is_early_cd_drive_check(name: &str) -> bool {
-        name == "GetLogicalDrives" || name == "GetLogicalDriveStringsA"
+    fn with_pe_image<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&PE<'_>) -> R,
+    {
+        let pe = self.get_pe_image();
+        f(&pe)
     }
 }
