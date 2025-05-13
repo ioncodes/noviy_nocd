@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Noviy Disk No-CD Patcher</title>
+</head>
+
+<body>
+    <script type="module">
+        import init, { patch } from "/wasm/noviy_nocd.js";
+        init().then(() => {
+            const input = new Uint8Array([0]);
+            const output = patch(input);
+            console.log("Patched output:", output);
+        });
+    </script>
+</body>
+
+</html>
