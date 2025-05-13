@@ -24,9 +24,19 @@ console.log = function (message) {
     statusDiv.textContent += message + '\n';
 }
 
+console.error = function (message) {
+    if (message.includes('Corrupted PE buffer')) {
+        statusDiv.textContent = 'Error: Selected file does not seem to be a valid executable\n';
+    } else {
+        statusDiv.textContent = message + '\n';
+    }
+}
+
 function handleFileSelect(event) {
     selectedFile = event.target.files[0];
+    statusDiv.textContent = `Selected file: ${selectedFile.name}`;
     updatePatchButtonState();
+    downloadLink.classList.add('hidden');
 }
 
 function updatePatchButtonState() {
@@ -35,6 +45,9 @@ function updatePatchButtonState() {
 
 function patchFile() {
     if (!selectedFile || !wasmLoaded) return;
+
+    // reset status
+    statusDiv.textContent = ``;
 
     const reader = new FileReader();
 

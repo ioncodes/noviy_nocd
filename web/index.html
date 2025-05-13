@@ -7,8 +7,19 @@
     <title>Noviy Disk No-CD Patcher</title>
 
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
+    <!-- <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" /> -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        p a:not(.btn) {
+            color: hsl(var(--p));
+            text-decoration: underline;
+            transition: color 0.2s;
+        }
+
+        p a:not(.btn):hover {
+            color: hsl(var(--pf));
+        }
+    </style>
 </head>
 
 <body class="min-h-screen flex items-center justify-center">
@@ -18,7 +29,8 @@
                 <h1 class="card-title text-3xl font-bold">Noviy Disk No-CD Patcher</h1>
 
                 <p>Please upload the protected file (e.g. LegoRR.exe). Refer to <a
-                        href="https://github.com/ioncodes/noviy_nocd?tab=readme-ov-file#compatibility">this
+                        href="https://github.com/ioncodes/noviy_nocd?tab=readme-ov-file#compatibility"
+                        class="link link-primary">this
                         compatibility list</a> if you're unsure
                     which file to upload.</p>
 
@@ -36,7 +48,8 @@
 
         <footer class="footer footer-center p-4 mt-8 text-base-content">
             <div>
-                <p>Made with ❤️ by <a href="https://github.com/ioncodes/noviy_nocd">Layle</a></p>
+                <p>Made with ❤️ by <a href="https://github.com/ioncodes/noviy_nocd" class="link link-primary">Layle</a>
+                </p>
                 <p><small>All data is directly processed in your browser. The files are never sent to a remote
                         location!</small></p>
             </div>
