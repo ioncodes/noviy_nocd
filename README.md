@@ -12,9 +12,10 @@ cargo build --release
 
 ## Usage
 ```
-layle@pwn:~$ ./noviy_nocd /tmp/LegoRR.exe
+noviy_nocd.exe <input> [output]
 ```
-This will create the patched binary at `/tmp/LegoRR.nocd.exe`.
+
+Note: The patcher will automatically attempt to write the file at `/input/folder/filename.nocd.exe` or similar. This will fail if you do not have write access to the folder. Either run as administrator or specify a full output path incl. the filename that is writable.
 
 <details>
     <summary>Example output</summary>
