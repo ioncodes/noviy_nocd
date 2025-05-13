@@ -1,18 +1,13 @@
 # Noviy Disk DRM Patcher
-A tool that automates the process of disabling the CD and anti-piracy checks found in Noviy Disk's custom DRM solution.
+A tool that automates the process of disabling the CD and anti-piracy checks found in Noviy Disk's custom DRM solution. Windows, Linux and macOS supported, and perhaps someday your web browser too!
 
 ## Building
 [![Build](https://github.com/ioncodes/noviy_nocd/actions/workflows/build.yml/badge.svg)](https://github.com/ioncodes/noviy_nocd/actions/workflows/build.yml)  
-Note: A compiler with support for C++23 features (namely `std::format` and `std::print`) is required. Support has been tested using GCC 14 and MSVC.
 
 ```bash
 git clone https://github.com/ioncodes/noviy_nocd
 cd noviy_nocd
-git submodule update --init --recursive
-mkdir build
-cd build
-cmake .. # or "CXX=$(which g++-14) cmake .."
-cmake --build . --config Release --target noviy_nocd -j 18
+cargo build --release
 ```
 
 ## Usage
@@ -25,158 +20,99 @@ This will create the patched binary at `/tmp/LegoRR.nocd.exe`.
     <summary>Example output</summary>
     
   ```
-layle@pwn:~$ ./noviy_nocd /tmp/LegoRR.exe
-Executable: /tmp/LegoRR.exe
-Size: 739328 bytes
+$ .\noviy_nocd.exe 'C:\Program Files (x86)\LEGO Racers 2\Lego Racers 2.exe'
+Patching: C:\Program Files (x86)\LEGO Racers 2\Lego Racers 2.exe
+Output: C:\Program Files (x86)\LEGO Racers 2\Lego Racers 2.nocd.exe
+File size: 1339392 bytes
 Image base: 0x400000
 
-*** Patching initial CD checks ***
-Found GetLogicalDrives in IAT: 0x49f0d0
-Found call to GetLogicalDrives at 0x47749f
-000000000047749F  call [0x0049F0D0]
-00000000004774A5  cmp eax, ebx
-00000000004774A7  jz 0x004775A4
-Found JCC at 0x4774a7
-000000000047749F  call [0x0049F0D0]
-00000000004774A5  cmp eax, ebx
-00000000004774A7  jnz 0x004775A4
-
 *** Patching checksum checks ***
-Checksum loop found at: 0x437adf
-0000000000437ADF  add eax, [esi]
-0000000000437AE1  inc esi
-0000000000437AE2  dec ecx
-0000000000437AE3  jnz 0x00437ADF
-0000000000437AE5  pop esi
-0000000000437AE6  mov edx, 0x4386FA
-0000000000437AEB  push edx
-0000000000437AEC  sub eax, 0xBC13601F
-0000000000437AF1  sub [esp], eax
-Found tamper instruction at: 0x437af1
-Checksum loop found at: 0x437b16
-0000000000437B16  add eax, [esi]
-0000000000437B18  inc esi
-0000000000437B19  dec ecx
-0000000000437B1A  jnz 0x00437B16
-0000000000437B1C  pop esi
-0000000000437B1D  mov edx, 0x438734
-0000000000437B22  push edx
-0000000000437B23  mov edx, 0x4386FD
-0000000000437B28  sub eax, [edx+0x04]
-0000000000437B2B  sub [esp], eax
-Found tamper instruction at: 0x437b2b
-Checksum loop found at: 0x4775fd
-00000000004775FD  add eax, [esi]
-00000000004775FF  inc esi
-0000000000477600  dec ecx
-0000000000477601  jnz 0x004775FD
-0000000000477603  pop esi
-0000000000477604  mov edx, 0x47821B
-0000000000477609  push edx
-000000000047760A  mov edx, 0x4781E4
-000000000047760F  sub eax, [edx+0x04]
-0000000000477612  sub [esp], eax
-Found tamper instruction at: 0x477612
-Checksum loop found at: 0x478cca
-0000000000478CCA  add eax, [esi]
-0000000000478CCC  inc esi
-0000000000478CCD  dec ecx
-0000000000478CCE  jnz 0x00478CCA
-0000000000478CD0  pop esi
-0000000000478CD1  mov edx, 0x4798E5
-0000000000478CD6  push edx
-0000000000478CD7  sub eax, 0xBC13601F
-0000000000478CDC  sub [esp], eax
-Found tamper instruction at: 0x478cdc
-Checksum loop found at: 0x478d01
-0000000000478D01  add eax, [esi]
-0000000000478D03  inc esi
-0000000000478D04  dec ecx
-0000000000478D05  jnz 0x00478D01
-0000000000478D07  pop esi
-0000000000478D08  mov edx, 0x47991F
-0000000000478D0D  push edx
-0000000000478D0E  mov edx, 0x4798E8
-0000000000478D13  sub eax, [edx+0x04]
-0000000000478D16  sub [esp], eax
-Found tamper instruction at: 0x478d16
+Found checksum check at 0x410AB6
+0x410AB6: add eax,[esi]
+0x410AB8: inc esi
+0x410AB9: dec ecx
+0x410ABA: jne short 00410AB6h
+0x410ABC: pop esi
+0x410ABD: mov edx,410AD1h
+0x410AC2: push edx
+0x410AC3: sub eax,0BC13601Fh
+0x410AC8: sub [esp],eax
+Patching checksum fail instruction at 0x410AC8:
+0x410AB6: add eax,[esi]
+0x410AB8: inc esi
+0x410AB9: dec ecx
+0x410ABA: jne short 00410AB6h
+0x410ABC: pop esi
+0x410ABD: mov edx,410AD1h
+0x410AC2: push edx
+0x410AC3: sub eax,0BC13601Fh
+0x410AC8: nop
+
+Found checksum check at 0x410AED
+0x410AED: add eax,[esi]
+0x410AEF: inc esi
+0x410AF0: dec ecx
+0x410AF1: jne short 00410AEDh
+0x410AF3: pop esi
+0x410AF4: mov edx,410B0Bh
+0x410AF9: push edx
+0x410AFA: mov edx,410AD4h
+0x410AFF: sub eax,[edx+4]
+0x410B02: sub [esp],eax
+Patching checksum fail instruction at 0x410B02:
+0x410AED: add eax,[esi]
+0x410AEF: inc esi
+0x410AF0: dec ecx
+0x410AF1: jne short 00410AEDh
+0x410AF3: pop esi
+0x410AF4: mov edx,410B0Bh
+0x410AF9: push edx
+0x410AFA: mov edx,410AD4h
+0x410AFF: sub eax,[edx+4]
+0x410B02: nop
+
+*** Patching early CD checks ***
+Found early CD check function in IAT: GetLogicalDriveStringsA @ 0x523180
+Found call instruction for early CD check at 0x4BFAD3
+0x4BFAD3: call dword ptr ds:[523180h]
+0x4BFAD9: mov ebp,eax
+0x4BFADB: shr ebp,2
+0x4BFADE: je near ptr 004BFBBAh
+Found JCC instruction at 0x4BFADE
+
+Patched JCC instruction at 0x4BFADE:
+0x4BFAD3: call dword ptr ds:[523180h]
+0x4BFAD9: mov ebp,eax
+0x4BFADB: shr ebp,2
+0x4BFADE: jne near ptr 004BFBBAh
 
 *** Patching ProgressiveDecompress_24 CD TOC checks ***
-Prologue to ProgressiveDecompress_24 found at: 0x437a7e
-Setup for ProgressiveDecompress_24 at: 0x437a92
-0000000000437A7E  mov edx, 0x02
-0000000000437A83  push edx
-0000000000437A84  xor eax, eax
-0000000000437A86  mov al, [0x0076D164]
-0000000000437A8B  push eax
-0000000000437A8C  mov edx, 0x438699
-0000000000437A91  push edx
-0000000000437A92  mov edx, 0x472820
-0000000000437A97  push edx
-0000000000437A98  ret
-0000000000437A99  mov [ebp-0x08], eax
-0000000000437A9C  xor al, al
-0000000000437A9E  mov [0x0076D164], al
-0000000000437AA3  mov eax, [ebp+0x0C]
-0000000000437AA6  test eax, eax
-0000000000437AA8  jnz 0x00437AB7
-0000000000437AAA  cmp dword ptr [ebp-0x08], 0x41321B
-Magic value: 0x41321b
-Patched ProgressiveDecompress_24 setup:
-0000000000437A7E  mov edx, 0x02
-0000000000437A83  push edx
-0000000000437A84  xor eax, eax
-0000000000437A86  mov al, [0x0076D164]
-0000000000437A8B  push eax
-0000000000437A8C  mov edx, 0x438699
-0000000000437A91  add esp, 0x08
-0000000000437A94  mov eax, 0x41321B
-0000000000437A99  mov [ebp-0x08], eax
-0000000000437A9C  xor al, al
-0000000000437A9E  mov [0x0076D164], al
-0000000000437AA3  mov eax, [ebp+0x0C]
-0000000000437AA6  test eax, eax
-0000000000437AA8  jnz 0x00437AB7
-0000000000437AAA  cmp dword ptr [ebp-0x08], 0x41321B
+Found pattern for ProgressiveDecompress_24 at 0x4106F1:
+0x4106F1: mov edx,2
+0x4106F6: push edx
+0x4106F7: xor eax,eax
+0x4106F9: mov al,ds:[54F5A1h]
+0x4106FE: push eax
+0x4106FF: mov edx,41070Ch
+0x410704: push edx
+0x410705: mov edx,50DE40h
+0x41070A: push edx
+0x41070B: ret
+0x41070C: mov [ebp-4],eax
+0x41070F: cmp dword ptr [ebp-4],4E2514h
+Prologue to ProgressiveDecompress_24 found at 0x41070F
+TOC magic value found: 0x4E2514
 
-*** Removing relocation entries for ProgressiveDecompress_24 ***
+Patched ProgressiveDecompress_24 call:
+0x410704: add esp,8
+0x410707: mov eax,4E2514h
+0x41070C: mov [ebp-4],eax
+0x41070F: cmp dword ptr [ebp-4],4E2514h
+
+Removing relocation entry at 0x10704
 No relocation section found
 
-Prologue to ProgressiveDecompress_24 found at: 0x478c6e
-Setup for ProgressiveDecompress_24 at: 0x478c82
-0000000000478C6E  mov edx, 0x03
-0000000000478C73  push edx
-0000000000478C74  xor eax, eax
-0000000000478C76  mov al, [0x0076D164]
-0000000000478C7B  push eax
-0000000000478C7C  mov edx, 0x479889
-0000000000478C81  push edx
-0000000000478C82  mov edx, 0x472820
-0000000000478C87  push edx
-0000000000478C88  ret
-0000000000478C89  mov [ebp-0x04], eax
-0000000000478C8C  xor al, al
-0000000000478C8E  mov [0x0076D164], al
-0000000000478C93  cmp dword ptr [ebp-0x04], 0x43002F
-Magic value: 0x43002f
-Patched ProgressiveDecompress_24 setup:
-0000000000478C6E  mov edx, 0x03
-0000000000478C73  push edx
-0000000000478C74  xor eax, eax
-0000000000478C76  mov al, [0x0076D164]
-0000000000478C7B  push eax
-0000000000478C7C  mov edx, 0x479889
-0000000000478C81  add esp, 0x08
-0000000000478C84  mov eax, 0x43002F
-0000000000478C89  mov [ebp-0x04], eax
-0000000000478C8C  xor al, al
-0000000000478C8E  mov [0x0076D164], al
-0000000000478C93  cmp dword ptr [ebp-0x04], 0x43002F
-
-*** Removing relocation entries for ProgressiveDecompress_24 ***
-No relocation section found
-
-Writing crack to: /tmp/LegoRR.nocd.exe
+Writing: C:\Program Files (x86)\LEGO Racers 2\Lego Racers 2.nocd.exe
   ```
 
 </details>
