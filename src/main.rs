@@ -1,3 +1,5 @@
+#[macro_use]
+mod common;
 mod patcher;
 mod pattern;
 

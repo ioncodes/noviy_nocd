@@ -3,21 +3,13 @@
 extern crate console_error_panic_hook;
 extern crate wasm_bindgen;
 
+#[macro_use]
+mod common;
 mod patcher;
 mod pattern;
 
 use patcher::Patcher;
 use wasm_bindgen::prelude::*;
-
-#[wasm_bindgen]
-extern "C" {
-    fn alert(s: &str);
-}
-
-#[wasm_bindgen]
-pub fn greet() {
-    alert("test");
-}
 
 #[wasm_bindgen]
 pub fn patch(input: &[u8]) -> Vec<u8> {
@@ -26,6 +18,9 @@ pub fn patch(input: &[u8]) -> Vec<u8> {
 
     // patch the input buffer
     let mut patcher = Patcher::new(input.to_vec());
+    stdlog!("Size: {} bytes", input.len());
+    stdlog!("Image base: 0x{:04X}", patcher.get_base_address());
+
     patcher.patch_checksum_checks();
     patcher.patch_early_cd_checks();
     patcher.patch_deco_checks();
