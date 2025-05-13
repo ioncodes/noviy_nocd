@@ -29,7 +29,7 @@ impl Patcher {
         let pattern = pattern!({0x03, 0x06, 0x46, 0x49, 0x75, 0xFA});
         let results = pattern::find_all(&self.buffer, pattern);
         if results.is_empty() {
-            println!("No checksum checks found");
+            println!("No checksum checks found\n");
             return;
         }
 

@@ -15,6 +15,8 @@ cargo build --release
 noviy_nocd.exe <input> [output]
 ```
 
+The exact input file that needs to be provided may vary depending on the title. There is a compatibility section down below that states which file needs to be passed to this tool for each *known* title. When in doubt, start by passing the main executable and if that doesn't work try some files with the `.DLL` extension. Technical note: You may also check which file imports `DECO_24.DLL`, that's the one.
+
 Note: The patcher will automatically attempt to write the file at `/input/folder/filename.nocd.exe` or similar. This will fail if you do not have write access to the folder. Either run as administrator or specify a full output path incl. the filename that is writable.
 
 <details>
@@ -125,7 +127,7 @@ Writing: C:\Program Files (x86)\LEGO Racers 2\Lego Racers 2.nocd.exe
 | Lego Racers 2     | `Lego Racers 2.exe` | `d0288104` | -                                                            |
 | Lego Alpha Team   | `LoadComp.dll`      | `31e3d676` | Requires a `Config.txt` file with `VerifyDiscVol  false` set |
 
-More titles may be compatible, these are the ones we've tested thus far.
+More titles may be compatible, these are the ones we've tested thus far. You can find out whether your software/game is protected by Noviy's DRM by checking the installation folder. Presence of a file called `DECO_24.DLL` suggests protection.
 
 ## Features
 * Patches all occurences of checksum checks via byte pattern matching (NOPs the code patch)
