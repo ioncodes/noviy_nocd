@@ -131,6 +131,7 @@ Writing: C:\Program Files (x86)\LEGO Racers 2\Lego Racers 2.nocd.exe
 | Lego Rock Raiders | `LegoRR.exe`        | `5435e147` | -                                                            |
 | Lego Racers 2     | `Lego Racers 2.exe` | `d0288104` | -                                                            |
 | Lego Alpha Team   | `LoadComp.dll`      | `31e3d676` | Requires a `Config.txt` file with `VerifyDiscVol  false` set |
+| Lego Stunt Rally  | `_msr.exe`          | `ca2ce831` | Requires the game to be launched via `_msr.exe`              |
 
 More titles may be compatible, these are the ones we've tested thus far. You can find out whether your software/game is protected by Noviy's DRM by checking the installation folder. Presence of a file called `DECO_24.DLL` suggests protection.
 
