@@ -1,5 +1,6 @@
 # Noviy Disk DRM Patcher
-A tool that automates the process of disabling the CD and anti-piracy checks found in Noviy Disk's custom DRM solution. Windows, Linux and macOS supported, and perhaps someday your web browser too!
+A tool that automates the process of disabling the CD and anti-piracy checks found in Noviy Disk's custom DRM solution. Windows, Linux and macOS supported - and browser version over [here](https://noviy.layle.dev).  
+Technical details about the DRM can be found on [my blog post](https://layle.me/posts/lego-rock-raiders-ru/) where I talked about cracking it for Lego Rock Raiders.
 
 ## Building
 [![Build](https://github.com/ioncodes/noviy_nocd/actions/workflows/build.yml/badge.svg)](https://github.com/ioncodes/noviy_nocd/actions/workflows/build.yml)  
@@ -8,6 +9,10 @@ A tool that automates the process of disabling the CD and anti-piracy checks fou
 git clone https://github.com/ioncodes/noviy_nocd
 cd noviy_nocd
 cargo build --release
+
+# to build the wasm portion (optional; only for web)
+cargo install wasm-pack
+wasm-pack build --release -d web/wasm --target web
 ```
 
 ## Usage
@@ -135,3 +140,7 @@ More titles may be compatible, these are the ones we've tested thus far. You can
   * Removes the `.reloc` entry if one is found to prevent our patch from being "overwritten" (important in case of DLLs)
 * Patches the initial CD checks by abusing the fact that when `GetLogicalDrives` and `GetLogicalDriveStringsA` "fail" the initial checks are skipped (inverts the jump condition)
   * Uses instruction matching (simple JCC predicates)
+
+## Attributions
+* Installer creation and testing by various members of [The Research Realm](https://researchrealm.net/)
+* Favicon by [Streamline HQ](https://www.streamlinehq.com/icons/pixel/computers-devices-electronics)

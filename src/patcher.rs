@@ -1,8 +1,7 @@
-use std::collections::HashMap;
-
 use crate::pattern;
 use goblin::{Object, pe::PE};
 use iced_x86::{Decoder, DecoderOptions, Instruction, Mnemonic, OpKind, Register};
+use std::collections::HashMap;
 
 pub struct Patcher {
     buffer: Vec<u8>,
@@ -24,17 +23,17 @@ impl Patcher {
     }
 
     pub fn patch_checksum_checks(&mut self) {
-        println!("\n*** Patching checksum checks ***");
+        stdlog!("\n*** Patching checksum checks ***");
 
         let pattern = pattern!({0x03, 0x06, 0x46, 0x49, 0x75, 0xFA});
         let results = pattern::find_all(&self.buffer, pattern);
         if results.is_empty() {
-            println!("No checksum checks found\n");
+            stdlog!("No checksum checks found\n");
             return;
         }
 
         for idx in results {
-            println!(
+            stdlog!(
                 "Found checksum check at 0x{:04X}",
                 self.get_base_address() + idx
             );
@@ -51,7 +50,7 @@ impl Patcher {
                 false,
             )
             .unwrap_or_else(|| panic!("Failed to find checksum fail instruction at 0x{:04X}", idx));
-            println!(
+            stdlog!(
                 "Patching checksum fail instruction at 0x{:04X}:",
                 instr.ip()
             );
@@ -68,12 +67,12 @@ impl Patcher {
                 false,
             );
 
-            println!();
+            stdlog!("");
         }
     }
 
     pub fn patch_early_cd_checks(&mut self) {
-        println!("*** Patching early CD checks ***");
+        stdlog!("*** Patching early CD checks ***");
 
         // we need to find the calls used to check for CD drives
         // we found that if the function fails, the early checks are simply skipped
@@ -84,7 +83,7 @@ impl Patcher {
             for import in &pe.imports {
                 if GET_LOGICAL_DRIVES_LUT.contains(&import.name.as_ref()) {
                     used_imports.insert(import.offset, String::from(import.name.clone()));
-                    println!(
+                    stdlog!(
                         "Found early CD check function in IAT: {} @ 0x{:04X}",
                         import.name,
                         self.get_base_address() + import.offset
@@ -95,7 +94,7 @@ impl Patcher {
         });
 
         if drm_imports.is_empty() {
-            println!("No early CD checks found");
+            stdlog!("No early CD checks found");
             return;
         }
 
@@ -116,7 +115,7 @@ impl Patcher {
             true,
         )
         .unwrap_or_else(|| panic!("Failed to find call instruction for early CD check"));
-        println!(
+        stdlog!(
             "Found call instruction for early CD check at 0x{:04X}",
             call_instr.ip()
         );
@@ -138,7 +137,7 @@ impl Patcher {
                 call_instr.ip()
             )
         });
-        println!("Found JCC instruction at 0x{:04X}", jcc_instr.ip());
+        stdlog!("Found JCC instruction at 0x{:04X}", jcc_instr.ip());
 
         // invert the JCC instruction
         let physical_offset = jcc_instr.ip() as usize - self.get_base_address();
@@ -158,7 +157,7 @@ impl Patcher {
             _ => panic!("Unsupported JCC instruction"),
         };
 
-        println!(
+        stdlog!(
             "\nPatched JCC instruction at 0x{:04X}:",
             jcc_instr.ip() as usize
         );
@@ -173,7 +172,7 @@ impl Patcher {
     }
 
     pub fn patch_deco_checks(&mut self) {
-        println!("\n*** Patching ProgressiveDecompress_24 CD TOC checks ***");
+        stdlog!("\n*** Patching ProgressiveDecompress_24 CD TOC checks ***");
 
         let pattern = pattern!({
             0xBA, {}, 0x00, 0x00, 0x00,    // mov edx, trackNumber
@@ -185,7 +184,7 @@ impl Patcher {
 
         // find the ProgressiveDecompress_24 call prologue
         for idx in pattern::find_all(&self.buffer, pattern) {
-            println!(
+            stdlog!(
                 "Found pattern for ProgressiveDecompress_24 at 0x{:04X}:",
                 self.get_base_address() + idx
             );
@@ -208,14 +207,14 @@ impl Patcher {
                     self.get_base_address() + idx
                 )
             });
-            println!(
+            stdlog!(
                 "Prologue to ProgressiveDecompress_24 found at 0x{:04X}",
                 instr.ip()
             );
 
             // we found the TOC magic value
             let magic_value = instr.immediate(1) as u32;
-            println!("TOC magic value found: 0x{:04X}", magic_value);
+            stdlog!("TOC magic value found: 0x{:04X}", magic_value);
 
             // set the physical offset to the push just before ProgressiveDecompress_24 gets mov'd
             const PROGRESSIVE_DECOMPRESS_OFFSET: usize = 20;
@@ -249,7 +248,7 @@ impl Patcher {
             self.buffer[physical_offset + 6] = ((magic_value >> 16) & 0xFF) as u8;
             self.buffer[physical_offset + 7] = ((magic_value >> 24) & 0xFF) as u8;
 
-            println!("\nPatched ProgressiveDecompress_24 call:");
+            stdlog!("\nPatched ProgressiveDecompress_24 call:");
             Self::disassemble_until(
                 &self.buffer[physical_offset..],
                 self.get_base_address() + physical_offset,
@@ -262,7 +261,7 @@ impl Patcher {
                 false,
             );
 
-            println!("\nRemoving relocation entry at 0x{:04X}", physical_offset);
+            stdlog!("\nRemoving relocation entry at 0x{:04X}", physical_offset);
             self.remove_relocation_entry(physical_offset + 1);
         }
     }
@@ -281,7 +280,7 @@ impl Patcher {
         while decoder.can_decode() {
             let instruction = decoder.decode();
             if !quiet {
-                println!("0x{:04X}: {}", instruction.ip(), instruction);
+                stdlog!("0x{:04X}: {}", instruction.ip(), instruction);
             }
 
             if predicate(&instruction) {
@@ -307,7 +306,7 @@ impl Patcher {
         });
 
         if reloc_offset == 0 || reloc_size == 0 {
-            println!("No relocation section found");
+            stdlog!("No relocation section found");
             return;
         }
 
@@ -341,9 +340,11 @@ impl Patcher {
             }
 
             if target_rva >= page_rva && target_rva < page_rva + 0x1000 {
-                println!(
+                stdlog!(
                     "Found potential relocation block at offset 0x{:x}, page RVA: 0x{:x}, size: {}",
-                    pos, page_rva, block_size
+                    pos,
+                    page_rva,
+                    block_size
                 );
 
                 // process entries in this block
@@ -364,16 +365,17 @@ impl Patcher {
                         || entry_rva == target_rva + 2
                         || entry_rva == target_rva + 3
                     {
-                        println!(
+                        stdlog!(
                             "Found relocation entry at offset 0x{:x}, RVA: 0x{:x}",
-                            entry_pos, entry_rva
+                            entry_pos,
+                            entry_rva
                         );
 
                         // zero the entry
                         self.buffer[entry_pos] = 0;
                         self.buffer[entry_pos + 1] = 0;
 
-                        println!("Removed relocation entry");
+                        stdlog!("Removed relocation entry");
                     }
                 }
             }
