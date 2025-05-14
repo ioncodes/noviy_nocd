@@ -1,4 +1,4 @@
-import init, { patch } from "wasm/noviy_nocd.js";
+import init, { patch } from "../wasm/noviy_nocd.js";
 
 let wasmLoaded = false;
 let selectedFile = null;
