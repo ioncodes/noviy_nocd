@@ -28,7 +28,16 @@ jobs:
         run: cargo install wasm-pack
 
       - name: Build WebAssembly module
-        run: wasm-pack build --target web --out-dir web/wasm
+        run: wasm-pack build --release --target web --out-dir web/wasm
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          path: './web'
+          name: github-pages
 
   deploy:
     needs: build
