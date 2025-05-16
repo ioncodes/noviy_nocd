@@ -29,8 +29,17 @@ init().then(() => {
 // populate compatibility table
 compatibilityTableData.forEach(item => {
     const row = document.createElement('tr');
+    let titleCell = item.title;
+    if (item.note) {
+        titleCell += ` <span class="relative group ml-1 align-middle">
+            <span class="absolute z-20 left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 px-3 py-2 rounded bg-base-200 text-base-content text-xs shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-normal">
+                ${item.note}
+            </span>
+            <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-base-200 text-base-content text-xs font-bold cursor-pointer">?</span>
+        </span>`;
+    }
     row.innerHTML = `
-        <td>${item.title}</td>
+        <td>${titleCell}</td>
         <td><code>${item.file}</code></td>
         <td><code>${item.crc32}</code></td>
     `;
