@@ -1,5 +1,12 @@
 import init, { patch } from "../wasm/noviy_nocd.js";
 
+const compatibilityTableData = [
+    { title: "Lego Rock Raiders", file: "LegoRR.exe", crc32: "5435e147", note: undefined },
+    { title: "Lego Racers 2", file: "Lego Racers 2.exe", crc32: "d0288104", note: undefined },
+    { title: "Lego Alpha Team", file: "LoadComp.dll", crc32: "31e3d676", note: "Requires a Config.txt file with \"VerifyDiscVol  false\" set" },
+    { title: "Lego Stunt Rally", file: "_msr.exe", crc32: "ca2ce831", note: "Requires the game to be launched via _msr.exe" },
+];
+
 let wasmLoaded = false;
 let selectedFile = null;
 
@@ -8,12 +15,26 @@ const fileInput = document.getElementById('fileInput');
 const patchButton = document.getElementById('patchButton');
 const statusDiv = document.getElementById('status');
 const downloadLink = document.getElementById('downloadLink');
+const compatibilityTable = document.getElementById('compatibilityTable');
 
 // initialize WASM module
 init().then(() => {
     wasmLoaded = true;
     console.log("WASM module loaded successfully");
     updatePatchButtonState();
+}).catch((error) => {
+    console.error("Failed to load WASM module:", error);
+});
+
+// populate compatibility table
+compatibilityTableData.forEach(item => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td>${item.title}</td>
+        <td><code>${item.file}</code></td>
+        <td><code>${item.crc32}</code></td>
+    `;
+    compatibilityTable.appendChild(row);
 });
 
 // event listeners
