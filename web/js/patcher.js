@@ -62,6 +62,28 @@ console.error = function (message) {
     }
 }
 
+function crc32(buffer) {
+    const table = new Uint32Array(256);
+    for (let i = 0; i < 256; i++) {
+        let crc = i;
+        for (let j = 0; j < 8; j++) {
+            if (crc & 1) {
+                crc = (crc >>> 1) ^ 0xEDB88320;
+            } else {
+                crc >>>= 1;
+            }
+        }
+        table[i] = crc >>> 0;
+    }
+
+    let crc = 0xFFFFFFFF;
+    for (let byte of buffer) {
+        const index = (crc ^ byte) & 0xFF;
+        crc = (crc >>> 8) ^ table[index];
+    }
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
 function handleFileSelect(event) {
     selectedFile = event.target.files[0];
     statusDiv.textContent = `Selected file: ${selectedFile.name}`;
@@ -85,7 +107,12 @@ function patchFile() {
         try {
             const arrayBuffer = event.target.result;
             const inputBytes = new Uint8Array(arrayBuffer);
-            
+
+            // see if the file is compatible
+            const crc = crc32(inputBytes);
+            const crcHex = crc.toString(16).padStart(8, '0');
+            const compatible = compatibilityTableData.find(item => item.crc32 === crcHex);
+
             // patch the selected file
             const outputBytes = patch(inputBytes);
 
