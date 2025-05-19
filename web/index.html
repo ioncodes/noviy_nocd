@@ -6,46 +6,80 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Noviy Disk No-CD Patcher</title>
 
-    <link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
+    <link rel="shortcut icon" type="image/x-icon" href="favicon.svg">
 
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
     <!-- <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" /> -->
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5/theme/lofi.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <style>
-        p a:not(.btn) {
-            color: hsl(var(--p));
-            text-decoration: underline;
-            transition: color 0.2s;
-        }
-
-        p a:not(.btn):hover {
-            color: hsl(var(--pf));
-        }
-    </style>
 </head>
 
-<body class="min-h-screen flex items-center justify-center">
-    <div class="container mx-auto px-4 py-8 max-w-2xl">
-        <div class="card bg-base-100 shadow-xl">
+<body>
+    <nav class="navbar fixed top-0 left-0 w-full bg-transparent z-10">
+        <div class="flex-1"></div>
+        <div class="navbar-end">
+            <ul class="menu menu-horizontal px-1">
+                <li><a href="https://layle.me/">Blog</a></li>
+                <li><a href="https://github.com/ioncodes">GitHub</a></li>
+                <li><a href="https://x.com/layle_ctf">Twitter</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Update alert container -->
+    <div id="alertContainer" class="fixed bottom-4 right-4 space-y-4 z-50"></div>
+
+    <div class="container mx-auto px-4 py-8 mt-16 max-w-2xl">
+        <div class="card bg-base-100 shadow-xl mt-4">
             <div class="card-body">
-                <h1 class="card-title text-3xl font-bold">Noviy Disk No-CD Patcher</h1>
-
-                <p>Please upload the protected file (e.g. LegoRR.exe). Refer to <a
-                        href="https://github.com/ioncodes/noviy_nocd?tab=readme-ov-file#compatibility"
-                        class="link link-primary">this
-                        compatibility list</a> if you're unsure
-                    which file to upload.</p>
-
-                <input type="file" id="fileInput" class="file-input file-input-bordered w-full max-w-xs" />
-
+                <h2 class="card-title text-3xl font-bold mb-2">Noviy Disk No-CD Patcher</h2>
+                <p>A technical writeup detailing how the DRM works can be found on <a
+                        href="https://layle.me/posts/lego-rock-raiders-ru/" class="link link-primary">my personal
+                        blog</a>. The source code for this patcher is available in the <a
+                        href="https://github.com/ioncodes/noviy_nocd" class="link link-primary">official GitHub
+                        repository</a>.</p>
+                <p>Please upload the protected file (e.g. <code>LegoRR.exe</code>). Refer to the table below to find out
+                    more about which file needs to be uploaded.</p>
+                <input type="file" id="fileInput" class="file-input file-input-bordered w-full max-w-xs mt-2" />
                 <button id="patchButton" class="btn btn-primary mt-4" disabled>Patch File</button>
-
-                <div class="mt-4 text-gray-600" style="max-height: 200px; overflow-y: auto;">
+                <div class="mt-4 text-gray-600"
+                    style="max-height: 200px; overflow-y: auto; padding-left: 2px; padding-right: 2px;">
                     <pre id="status"></pre>
                 </div>
-
                 <a id="downloadLink" href="#" class="btn btn-success mt-4 hidden">Download No-CD Crack</a>
+                <div class="collapse collapse-arrow bg-base-200 mt-4">
+                    <input type="checkbox" id="compatCollapseCheckbox" class="peer" />
+                    <div class="collapse-title text-xl font-medium flex items-center">
+                        Compatibility
+                    </div>
+                    <div class="collapse-content">
+                        <p>This list may not be complete. Software and games protected by Noviy Disk's DRM may be
+                            compatible even if they are not listed. The existence of a file called
+                            <code>DECO_24.DLL</code> anywhere within the installation folder (incl. subfolders) suggests
+                            protection using Noviy Disk's DRM. Please <a
+                                href="https://github.com/ioncodes/noviy_nocd/issues" class="link link-primary">create a
+                                GitHub issue</a> if you
+                            successfully patch a
+                            game that's not listed!
+                        </p>
+                        <div class="overflow-x-auto transition-all duration-300" id="compatibilityTableWrapper">
+                            <table class="table table-compact w-full mt-2">
+                                <thead>
+                                    <tr>
+                                        <th>Game/Software</th>
+                                        <th>File</th>
+                                        <th>CRC32</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="compatibilityTable">
+                                </tbody>
+                            </table>
+                        </div>
+                        <p><small>Titles with a <code>?</code> may require additional steps. Hover over the question
+                                mark to
+                                find out more.</small></p>
+                    </div>
+                </div>
             </div>
         </div>
 
