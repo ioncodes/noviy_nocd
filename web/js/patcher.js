@@ -8,7 +8,7 @@ const compatibilityTableData = [
 ];
 
 let wasmLoaded = false;
-let selectedFile = null;
+let fileBuffer = null;
 
 // DOM elements
 const fileInput = document.getElementById('fileInput');
@@ -86,14 +86,43 @@ function crc32(buffer) {
 }
 
 function handleFileSelect(event) {
-    selectedFile = event.target.files[0];
+    const selectedFile = event.target.files[0];
     statusDiv.textContent = `Selected file: ${selectedFile.name}`;
-    updatePatchButtonState();
+    fileBuffer = null; // reset file buffer
+    alertContainer.innerHTML = ``; // clear previous alerts
     downloadLink.classList.add('hidden');
+    updatePatchButtonState();
+
+    const reader = new FileReader();
+    reader.onload = function (event) {
+        try {
+            const arrayBuffer = event.target.result;
+            const inputBytes = new Uint8Array(arrayBuffer);
+
+            // calculate CRC32 and check compatibility
+            const crc = crc32(inputBytes);
+            const crcHex = crc.toString(16).padStart(8, '0');
+            const compatible = compatibilityTableData.find(item => item.crc32 === crcHex);
+
+            if (compatible) {
+                showAlert(`Compatible file detected for \"${compatible.title}\"`, 'success');
+            } else {
+                showAlert('Warning: File is not listed as compatible', 'warning');
+            }
+
+            fileBuffer = inputBytes; // Store the valid file buffer
+            updatePatchButtonState();
+        } catch (error) {
+            console.error(error);
+            showAlert('Error: Unable to process the selected file.', 'error');
+        }
+    };
+
+    reader.readAsArrayBuffer(selectedFile);
 }
 
 function updatePatchButtonState() {
-    patchButton.disabled = !(wasmLoaded && selectedFile);
+    patchButton.disabled = !(wasmLoaded && fileBuffer);
 }
 
 function showAlert(message, type) {
@@ -117,53 +146,34 @@ function showAlert(message, type) {
 
     alertContainer.appendChild(alert);
 
-    setTimeout(() => alert.remove(), 5000); // Auto-remove after 5 seconds
+    setTimeout(() => alert.remove(), 5000); // auto-remove after 5 seconds
 }
 
 function patchFile() {
-    if (!selectedFile || !wasmLoaded) return;
+    if (!fileBuffer || !wasmLoaded) return;
 
     // reset status and alerts
     statusDiv.textContent = ``;
     alertContainer.innerHTML = ``;
 
-    const reader = new FileReader();
+    try {
+        // patch the file buffer
+        const outputBytes = patch(fileBuffer);
 
-    reader.onload = function (event) {
-        try {
-            const arrayBuffer = event.target.result;
-            const inputBytes = new Uint8Array(arrayBuffer);
+        // create a download link for the patched file
+        const blob = new Blob([outputBytes], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
 
-            // see if the file is compatible
-            const crc = crc32(inputBytes);
-            const crcHex = crc.toString(16).padStart(8, '0');
-            const compatible = compatibilityTableData.find(item => item.crc32 === crcHex);
+        // pffer download as filename.nocd.ext
+        const stem = fileInput.files[0].name.split('.')[0];
+        const ext = fileInput.files[0].name.split('.').pop();
+        const downloadName = `${stem}.nocd.${ext}`;
 
-            if (compatible) {
-                showAlert(`Compatible file detected: ${compatible.title}`, 'success');
-            } else {
-                showAlert('Warning: File is not listed as compatible. Proceeding anyway.', 'warning');
-            }
-
-            // patch the selected file
-            const outputBytes = patch(inputBytes);
-
-            // create a download link for the patched file
-            const blob = new Blob([outputBytes], { type: 'application/octet-stream' });
-            const url = URL.createObjectURL(blob);
-
-            // offer download as filename.nocd.ext
-            const stem = selectedFile.name.split('.')[0];
-            const ext = selectedFile.name.split('.').pop();
-            const downloadName = `${stem}.nocd.${ext}`;
-
-            downloadLink.href = url;
-            downloadLink.download = downloadName;
-            downloadLink.classList.remove('hidden');
-        } catch (error) {
-            console.error(error);
-        }
-    };
-
-    reader.readAsArrayBuffer(selectedFile);
+        downloadLink.href = url;
+        downloadLink.download = downloadName;
+        downloadLink.classList.remove('hidden');
+    } catch (error) {
+        console.error(error);
+        showAlert('Error: Failed to patch the file.', 'error');
+    }
 }
