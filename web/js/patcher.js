@@ -114,7 +114,7 @@ function handleFileSelect(event) {
             updatePatchButtonState();
         } catch (error) {
             console.error(error);
-            showAlert('Error: Unable to process the selected file.', 'error');
+            showAlert('Error: Unable to process the selected file', 'error');
         }
     };
 
@@ -174,6 +174,6 @@ function patchFile() {
         downloadLink.classList.remove('hidden');
     } catch (error) {
         console.error(error);
-        showAlert('Error: Failed to patch the file.', 'error');
+        showAlert('Error: Failed to patch the file', 'error');
     }
 }
