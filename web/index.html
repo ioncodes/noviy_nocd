@@ -27,54 +27,50 @@
     </nav>
 
     <div class="container mx-auto px-4 py-8 mt-16 max-w-2xl">
-        <div class="card bg-base-100 shadow-xl">
+        <div class="card bg-base-100 shadow-xl mt-4">
             <div class="card-body">
-                <h1 class="card-title text-3xl font-bold">Noviy Disk No-CD Patcher</h1>
-
-                <p>A technical writeup detailing how the DRM works
-                    can be
-                    found on <a href="https://layle.me/posts/lego-rock-raiders-ru/" class="link link-primary">my
-                        personal blog</a>. The source code for this patcher is available in the <a
+                <h2 class="card-title text-3xl font-bold mb-2">Noviy Disk No-CD Patcher</h2>
+                <p>A technical writeup detailing how the DRM works can be found on <a
+                        href="https://layle.me/posts/lego-rock-raiders-ru/" class="link link-primary">my personal
+                        blog</a>. The source code for this patcher is available in the <a
                         href="https://github.com/ioncodes/noviy_nocd" class="link link-primary">official GitHub
                         repository</a>.</p>
                 <p>Please upload the protected file (e.g. <code>LegoRR.exe</code>). Refer to the table below to find out
-                    more about
-                    which file needs to be uploaded.</p>
-
+                    more about which file needs to be uploaded.</p>
                 <input type="file" id="fileInput" class="file-input file-input-bordered w-full max-w-xs" />
-
                 <button id="patchButton" class="btn btn-primary mt-4" disabled>Patch File</button>
-
                 <div class="mt-4 text-gray-600"
                     style="max-height: 200px; overflow-y: auto; padding-left: 2px; padding-right: 2px;">
                     <pre id="status"></pre>
                 </div>
-
                 <a id="downloadLink" href="#" class="btn btn-success mt-4 hidden">Download No-CD Crack</a>
-            </div>
-        </div>
-
-        <div class="card bg-base-100 shadow-xl mt-4">
-            <div class="card-body">
-                <h2 class="card-title">Compatibility</h2>
-                <p>This list may not be complete. Software and games protected by Noviy Disk's DRM may be
-                    compatible even if they are not listed. The existence of a file called <code>DECO_24.DLL</code>
-                    anywhere within the installation folder (incl. subfolders) suggests protection using Noviy Disk's
-                    DRM.</p>
-                <p>Titles with a <code>?</code> may require additional steps. Hover over the question mark to find out
-                    more.</p>
-                <div class="overflow-x-auto">
-                    <table class="table table-compact w-full">
-                        <thead>
-                            <tr>
-                                <th>Game/Software</th>
-                                <th>File</th>
-                                <th>CRC32</th>
-                            </tr>
-                        </thead>
-                        <tbody id="compatibilityTable">
-                        </tbody>
-                    </table>
+                <div class="collapse collapse-arrow bg-base-200 mt-4">
+                    <input type="checkbox" id="compatCollapseCheckbox" class="peer" />
+                    <div class="collapse-title text-xl font-medium flex items-center">
+                        Compatibility
+                    </div>
+                    <div class="collapse-content">
+                        <p>This list may not be complete. Software and games protected by Noviy Disk's DRM may be
+                            compatible even if they are not listed. The existence of a file called
+                            <code>DECO_24.DLL</code> anywhere within the installation folder (incl. subfolders) suggests
+                            protection using Noviy Disk's DRM.
+                        </p>
+                        <p>Titles with a <code>?</code> may require additional steps. Hover over the question mark to
+                            find out more.</p>
+                        <div class="overflow-x-auto transition-all duration-300" id="compatibilityTableWrapper">
+                            <table class="table table-compact w-full">
+                                <thead>
+                                    <tr>
+                                        <th>Game/Software</th>
+                                        <th>File</th>
+                                        <th>CRC32</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="compatibilityTable">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
