@@ -144,4 +144,4 @@ More titles may be compatible, these are the ones we've tested thus far. You can
 
 ## Attributions
 * Installer creation and testing by various members of [The Research Realm](https://researchrealm.net/)
-* Favicon by [Streamline HQ](https://www.streamlinehq.com/icons/pixel/computers-devices-electronics)
+* Favicon drawn by my girlfriend
