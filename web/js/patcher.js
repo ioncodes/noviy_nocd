@@ -16,6 +16,7 @@ const patchButton = document.getElementById('patchButton');
 const statusDiv = document.getElementById('status');
 const downloadLink = document.getElementById('downloadLink');
 const compatibilityTable = document.getElementById('compatibilityTable');
+const alertContainer = document.getElementById('alertContainer');
 
 // initialize WASM module
 init().then(() => {
@@ -95,11 +96,36 @@ function updatePatchButtonState() {
     patchButton.disabled = !(wasmLoaded && selectedFile);
 }
 
+function showAlert(message, type) {
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} shadow-lg w-80`;
+
+    const icon = type === 'success' 
+        ? `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 shrink-0 stroke-current" fill="none" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+           </svg>`
+        : `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 shrink-0 stroke-current" fill="none" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+           </svg>`;
+
+    alert.innerHTML = `
+        <div class="flex items-center">
+            ${icon}
+            <span class="ml-2">${message}</span>
+        </div>
+    `;
+
+    alertContainer.appendChild(alert);
+
+    setTimeout(() => alert.remove(), 5000); // Auto-remove after 5 seconds
+}
+
 function patchFile() {
     if (!selectedFile || !wasmLoaded) return;
 
-    // reset status
+    // reset status and alerts
     statusDiv.textContent = ``;
+    alertContainer.innerHTML = ``;
 
     const reader = new FileReader();
 
@@ -112,6 +138,12 @@ function patchFile() {
             const crc = crc32(inputBytes);
             const crcHex = crc.toString(16).padStart(8, '0');
             const compatible = compatibilityTableData.find(item => item.crc32 === crcHex);
+
+            if (compatible) {
+                showAlert(`Compatible file detected: ${compatible.title}`, 'success');
+            } else {
+                showAlert('Warning: File is not listed as compatible. Proceeding anyway.', 'warning');
+            }
 
             // patch the selected file
             const outputBytes = patch(inputBytes);
