@@ -226,7 +226,7 @@ impl Patcher {
 
             // .text:1002B4E6 52              push    edx
             // .text:1002B4E7 BA 76 49 07 10  mov     edx, offset
-            // ProgressiveDecompress_24 .text:1002B4EC 52              push    edx
+            // .text:1002B4EC 52              push    edx
             // .text:1002B4ED C3              retn
 
             // into the following sequence
